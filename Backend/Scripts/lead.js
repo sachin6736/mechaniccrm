@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
+import Sale from '../Models/Sale.js'; // Adjust path to your Sale model
 import Lead from '../Models/Lead.js'; // Adjust path to your Lead model
 
-// Connect to MongoDB
 mongoose
   .connect(
     'mongodb+srv://sachinpradeepan27:d1HduFIZKJgKSkpQ@newcrm.ex72imw.mongodb.net/?retryWrites=true&w=majority&appName=newcrm',
@@ -14,71 +14,62 @@ mongoose
     console.log('✅ Connected to MongoDB');
 
     try {
-      // Update leads where notes is a string
-      const stringNotesResult = await Lead.updateMany(
-        { notes: { $type: 'string' } },
-        [
-          {
-            $set: {
-              notes: [
-                {
-                  text: '$notes',
-                  createdAt: { $ifNull: ['$createdAt', new Date()] },
-                  createdBy: null, // Set to null or a default user ID if available
-                },
-              ],
-            },
-          },
-        ]
-      );
+      const sales = await Sale.find().populate('leadId');
+      const updatePromises = sales.map(async (sale) => {
+        const lead = sale.leadId;
+        if (!lead) {
+          console.warn(`⚠️ Sale ${sale._id} has no associated lead. Skipping.`);
+          return;
+        }
 
-      console.log(`✅ Updated ${stringNotesResult.modifiedCount} leads with string notes converted to array format.`);
+        const updateData = {
+          name: lead.name || 'Unknown',
+          email: lead.email || '',
+          phoneNumber: lead.phoneNumber || '',
+          businessName: lead.businessName || '',
+          businessAddress: lead.businessAddress || '',
+          billingAddress: sale.billingAddress || lead.businessAddress || '',
+          card: sale.card || '****',
+          exp: sale.exp || 'MM/YY',
+          cvv: sale.cvv || '***',
+          totalAmount: sale.totalAmount || sale.amount || 0, // Migrate amount to totalAmount
+          paymentType: sale.paymentType === 'One-time' || sale.paymentType === 'Recurring' ? sale.paymentType : null,
+          contractTerm: sale.contractTerm || null,
+          paymentMethod: sale.paymentMethod === 'Credit Card' || sale.paymentMethod === 'Bank Transfer' || sale.paymentMethod === 'PayPal' || sale.paymentMethod === 'Other' ? sale.paymentMethod : null,
+          paymentDate: sale.status === 'Pending' && (sale.totalAmount === 0 || sale.amount === 0) ? null : sale.paymentDate || null,
+          $unset: sale.amount ? { amount: '' } : {}, // Remove old amount field if it exists
+        };
 
-      // Update leads where notes exist but lack createdBy
-      const notesWithoutCreatedByResult = await Lead.updateMany(
-        { 'notes.createdBy': { $exists: false } },
-        [
-          {
-            $set: {
-              notes: {
-                $map: {
-                  input: '$notes',
-                  as: 'note',
-                  in: {
-                    text: '$$note.text',
-                    createdAt: { $ifNull: ['$$note.createdAt', new Date()] },
-                    createdBy: null, // Set to null or a default user ID if available
-                  },
-                },
-              },
-            },
-          },
-        ]
-      );
+        return Sale.updateOne(
+          { _id: sale._id },
+          { $set: updateData, $unset: updateData.$unset }
+        );
+      });
 
-      console.log(`✅ Added createdBy to ${notesWithoutCreatedByResult.modifiedCount} leads' notes.`);
+      const results = await Promise.all(updatePromises);
+      const modifiedCount = results.reduce((sum, result) => sum + (result.modifiedCount || 0), 0);
+      console.log(`✅ Updated ${modifiedCount} sales with new schema fields.`);
 
-      // Ensure importantDates exists as an array
-      const importantDatesResult = await Lead.updateMany(
-        { importantDates: { $exists: false } },
-        { $set: { importantDates: [] } }
-      );
-
-      console.log(`✅ Ensured importantDates field for ${importantDatesResult.modifiedCount} leads.`);
-
-      // Validate schema by checking for any malformed notes
-      const malformedNotes = await Lead.find({
+      const malformedSales = await Sale.find({
         $or: [
-          { notes: { $not: { $type: 'array' } } },
-          { 'notes.text': { $exists: false } },
+          { name: { $exists: false } },
+          { email: { $exists: false } },
+          { phoneNumber: { $exists: false } },
+          { businessName: { $exists: false } },
+          { businessAddress: { $exists: false } },
+          { billingAddress: { $exists: false } },
+          { card: { $exists: false } },
+          { exp: { $exists: false } },
+          { cvv: { $exists: false } },
+          { totalAmount: { $exists: false } },
         ],
       });
 
-      if (malformedNotes.length > 0) {
-        console.warn(`⚠️ Found ${malformedNotes.length} leads with malformed notes. Manual review required.`);
-        console.log(malformedNotes.map((lead) => lead._id));
+      if (malformedSales.length > 0) {
+        console.warn(`⚠️ Found ${malformedSales.length} sales with missing required fields. Manual review required.`);
+        console.log(malformedSales.map((sale) => sale._id));
       } else {
-        console.log('✅ All notes are in the correct format.');
+        console.log('✅ All sales are in the correct format.');
       }
 
       await mongoose.disconnect();

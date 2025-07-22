@@ -44,6 +44,14 @@ const Navbar = () => {
       },
     },
     {
+      label: 'View Sales',
+      icon: <DollarSign className="h-6 w-6 text-indigo-600" />,
+      onClick: () => {
+        navigate('/sales');
+        setShowSidebar(false);
+      },
+    },
+    {
       label: 'Payment Status',
       icon: <DollarSign className="h-6 w-6 text-indigo-600" />,
       onClick: () => {

@@ -57,20 +57,17 @@ const Lead = () => {
           method: 'GET',
           credentials: 'include',
         });
-        console.log('Response status:', response.status);
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Response error:', errorText);
           throw new Error(`Failed to fetch lead: ${response.status}`);
         }
         const data = await response.json();
-        console.log('Fetched data:', data);
         if (!data.success) {
           throw new Error(data.message || 'Failed to fetch lead data');
         }
         setSingleLead(data.data);
         setNotes(data.data.notes || []);
-        console.log('Fetched importantDates:', data.data.importantDates);
         setSelectedDates(data.data.importantDates || []);
         setEditForm({
           name: data.data.name || '',
@@ -275,13 +272,9 @@ const Lead = () => {
         });
 
         if (response.ok) {
-          toast.success('Status changed successfully');
-          const leadResponse = await fetch(`http://localhost:3000/Lead/getleadbyid/${leadId}`, {
-            credentials: 'include',
-          });
-          const updatedLead = await leadResponse.json();
+          const updatedLead = await response.json();
           if (!updatedLead.success) {
-            throw new Error(updatedLead.message || 'Failed to fetch updated lead');
+            throw new Error(updatedLead.message || 'Failed to update status');
           }
           setSingleLead(updatedLead.data);
           setNotes(updatedLead.data.notes || []);
@@ -294,11 +287,15 @@ const Lead = () => {
             businessAddress: updatedLead.data.businessAddress || '',
             disposition: updatedLead.data.disposition || '',
           });
+          if (newStatus === 'Sale') {
+            toast.success('Draft sale created. Please complete payment details on the Sales page.');
+          }
+          toast.success('Status changed successfully');
           setShowConfirmModal(false);
         } else {
-          const errorText = await response.text();
-          console.error('Failed to update status:', errorText);
-          toast.error('Failed to update status');
+          const errorData = await response.json();
+          console.error('Failed to update status:', errorData.message);
+          toast.error(errorData.message || 'Failed to update status');
         }
       } catch (error) {
         console.error('Error updating lead status:', error);
@@ -320,7 +317,13 @@ const Lead = () => {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center">
         <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 shadow-sm">
-          <p className="text-sm font-medium">{error || 'No lead data available.'}</p>
+          <p className="text-sm font-medium">{error || 'Lead not found. Please check the lead ID or try again later.'}</p>
+          <button
+            onClick={() => navigate('/leads')}
+            className="mt-2 px-4 py-1 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700"
+          >
+            Back to Leads
+          </button>
         </div>
       </div>
     );
@@ -445,13 +448,16 @@ const Lead = () => {
                     <div
                       key={index}
                       className={`p-3 rounded-lg border border-gray-200 ${
+                        note.text.startsWith('Changed status') ? 'bg-purple-50' :
                         note.text.startsWith('Edited lead:') ? 'bg-blue-50' :
                         note.text.startsWith('Added important date:') || note.text.startsWith('Removed important date:') ? 'bg-red-50' :
                         'bg-gray-50'
                       }`}
                     >
                       <p className="text-sm text-gray-900">
-                        {note.text.startsWith('Edited lead:') ? (
+                        {note.text.startsWith('Changed status') ? (
+                          <span className="font-medium text-purple-600">[Status] </span>
+                        ) : note.text.startsWith('Edited lead:') ? (
                           <span className="font-medium text-blue-600">[Edit] </span>
                         ) : note.text.startsWith('Added important date:') || note.text.startsWith('Removed important date:') ? (
                           <span className="font-medium text-red-600">[Date] </span>
@@ -505,7 +511,7 @@ const Lead = () => {
           {/* Important Dates */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Important Dates</h3>
-            <div className="flex justify-center">
+            <div className="flex justify-center mb-6">
               <Calendar
                 onClickDay={handleDateClick}
                 tileClassName={({ date }) =>
@@ -541,15 +547,15 @@ const Lead = () => {
               <div className="flex justify-end gap-2 mt-4">
                 <button
                   onClick={() => setShowDateNoteModal(false)}
-                  className="px-3 py-1 text-sm text-red-500 hover:text-red-600"
+                  className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 rounded-lg transition-colors duration-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveDateNote}
-                  className="inline-flex items-center px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200"
                 >
-                  <Save className="h-4 w-4 mr-1" /> Save
+                  <Save className="h-4 w-4 mr-1 inline" /> Save
                 </button>
               </div>
             </div>
