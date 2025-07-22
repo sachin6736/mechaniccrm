@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Edit, Save } from 'lucide-react';
 import Calendar from 'react-calendar';
+import ConfirmationModal from '../components/ConfirmationModal';
 import 'react-calendar/dist/Calendar.css';
 
 const statusOptions = [
@@ -11,6 +12,13 @@ const statusOptions = [
   'Follow up',
   'Sale',
 ];
+
+const formatLocalDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const statusTextColors = {
   'Not Interested': 'bg-red-100 text-red-800',
@@ -30,6 +38,15 @@ const Lead = () => {
   const [selectedDates, setSelectedDates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showDateNoteModal, setShowDateNoteModal] = useState(false);
+  const [dateNote, setDateNote] = useState('');
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [isDateSelected, setIsDateSelected] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmTitle, setConfirmTitle] = useState('');
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmText, setConfirmText] = useState('Confirm');
 
   useEffect(() => {
     const fetchSingleLead = async () => {
@@ -48,16 +65,20 @@ const Lead = () => {
         }
         const data = await response.json();
         console.log('Fetched data:', data);
-        setSingleLead(data);
-        setNotes(data.notes || []);
-        setSelectedDates(data.importantDates || []);
+        if (!data.success) {
+          throw new Error(data.message || 'Failed to fetch lead data');
+        }
+        setSingleLead(data.data);
+        setNotes(data.data.notes || []);
+        console.log('Fetched importantDates:', data.data.importantDates);
+        setSelectedDates(data.data.importantDates || []);
         setEditForm({
-          name: data.name || '',
-          email: data.email || '',
-          phoneNumber: data.phoneNumber || '',
-          businessName: data.businessName || '',
-          businessAddress: data.businessAddress || '',
-          disposition: data.disposition || '',
+          name: data.data.name || '',
+          email: data.data.email || '',
+          phoneNumber: data.data.phoneNumber || '',
+          businessName: data.data.businessName || '',
+          businessAddress: data.data.businessAddress || '',
+          disposition: data.data.disposition || '',
         });
         setLoading(false);
       } catch (err) {
@@ -87,12 +108,16 @@ const Lead = () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ text: newNote }), // Send only the new note text
+        body: JSON.stringify({ text: newNote }),
       });
 
       if (response.ok) {
         const updatedLead = await response.json();
-        setNotes(updatedLead.lead.notes || []);
+        if (!updatedLead.success) {
+          throw new Error(updatedLead.message || 'Failed to add note');
+        }
+        setSingleLead(updatedLead.data);
+        setNotes(updatedLead.data.notes || []);
         toast.success('Note added successfully');
         setNewNote('');
         setIsEditing(false);
@@ -107,28 +132,55 @@ const Lead = () => {
     }
   };
 
-  const handleDateClick = async (date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    const isDateSelected = selectedDates.includes(dateStr);
+  const handleDateClick = (date) => {
+    const dateStr = formatLocalDate(date);
+    const isSelected = selectedDates.includes(dateStr);
+    setSelectedDate(dateStr);
+    setIsDateSelected(isSelected);
+    setDateNote('');
+    setShowDateNoteModal(true);
+  };
+
+  const handleSaveDateNote = async () => {
+    if (!selectedDate) {
+      toast.error('No date selected');
+      return;
+    }
+
     const updatedDates = isDateSelected
-      ? selectedDates.filter((d) => d !== dateStr)
-      : [...selectedDates, dateStr];
+      ? selectedDates.filter((d) => d !== selectedDate)
+      : [...selectedDates, selectedDate];
+    const autoNote = isDateSelected
+      ? `Removed important date: ${selectedDate}`
+      : `Added important date: ${selectedDate}`;
+    const noteText = dateNote.trim()
+      ? `${autoNote}. Custom note: ${dateNote}`
+      : autoNote;
 
     try {
       const response = await fetch(`http://localhost:3000/Lead/updateDates/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ importantDates: updatedDates }),
+        body: JSON.stringify({ importantDates: updatedDates, noteText }),
       });
 
       if (response.ok) {
+        const updatedLead = await response.json();
+        if (!updatedLead.success) {
+          throw new Error(updatedLead.message || 'Failed to update date');
+        }
+        setSingleLead(updatedLead.data);
+        setNotes(updatedLead.data.notes || []);
+        setSelectedDates(updatedLead.data.importantDates || []);
         toast.success('Date updated successfully');
-        setSelectedDates(updatedDates);
+        setShowDateNoteModal(false);
+        setDateNote('');
+        setSelectedDate(null);
       } else {
-        const errorText = await response.text();
-        console.error('Failed to update date:', errorText);
-        toast.error('Failed to update date');
+        const errorData = await response.json();
+        console.error('Failed to update date:', errorData.message);
+        toast.error(errorData.message || 'Failed to update date');
       }
     } catch (error) {
       console.error('Error updating date:', error);
@@ -136,56 +188,124 @@ const Lead = () => {
     }
   };
 
-  const handleEditLead = async () => {
-    try {
-      const response = await fetch(`http://localhost:3000/Lead/editlead/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(editForm),
-      });
-
-      if (response.ok) {
-        const updatedLead = await response.json();
-        setSingleLead(updatedLead);
-        setIsEditingLead(false);
-        toast.success('Lead updated successfully');
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update lead:', errorText);
-        toast.error('Failed to update lead');
-      }
-    } catch (error) {
-      console.error('Error updating lead:', error);
-      toast.error('Error updating lead');
+  const handleEditLead = () => {
+    if (!editForm.name || !editForm.email || !editForm.phoneNumber || !editForm.businessName || !editForm.businessAddress) {
+      toast.warning('All fields are required');
+      return;
     }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editForm.email)) {
+      toast.warning('Please enter a valid email');
+      return;
+    }
+
+    const hasChanges = (
+      editForm.name !== singleLead.name ||
+      editForm.email !== singleLead.email ||
+      editForm.phoneNumber !== singleLead.phoneNumber ||
+      editForm.businessName !== singleLead.businessName ||
+      editForm.businessAddress !== singleLead.businessAddress
+    );
+
+    if (!hasChanges) {
+      toast.info('No changes made to lead details');
+      setIsEditingLead(false);
+      return;
+    }
+
+    setConfirmTitle('Confirm Lead Edit');
+    setConfirmMessage('Are you sure you want to save changes to this lead?');
+    setConfirmText('Save Changes');
+    setConfirmAction(() => async () => {
+      try {
+        const response = await fetch(`http://localhost:3000/Lead/editlead/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(editForm),
+        });
+
+        if (response.ok) {
+          const updatedLead = await response.json();
+          if (!updatedLead.success) {
+            throw new Error(updatedLead.message || 'Failed to update lead');
+          }
+          setSingleLead(updatedLead.data);
+          setNotes(updatedLead.data.notes || []);
+          setEditForm({
+            name: updatedLead.data.name || '',
+            email: updatedLead.data.email || '',
+            phoneNumber: updatedLead.data.phoneNumber || '',
+            businessName: updatedLead.data.businessName || '',
+            businessAddress: updatedLead.data.businessAddress || '',
+            disposition: updatedLead.data.disposition || '',
+          });
+          setIsEditingLead(false);
+          toast.success('Lead updated successfully');
+          setShowConfirmModal(false);
+        } else {
+          const errorData = await response.json();
+          console.error('Failed to update lead:', errorData.message);
+          toast.error(errorData.message || 'Failed to update lead');
+        }
+      } catch (error) {
+        console.error('Error updating lead:', error);
+        toast.error('Error updating lead');
+      }
+    });
+    setShowConfirmModal(true);
   };
 
-  const updateStatus = async (leadId, newStatus) => {
-    try {
-      const response = await fetch(`http://localhost:3000/Lead/editstatus/${leadId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ disposition: newStatus }),
-      });
-
-      if (response.ok) {
-        toast.success('Status changed successfully');
-        const leadResponse = await fetch(`http://localhost:3000/Lead/getleadbyid/${leadId}`, {
-          credentials: 'include',
-        });
-        const updatedLead = await leadResponse.json();
-        setSingleLead(updatedLead);
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update status:', errorText);
-        toast.error('Failed to update status');
-      }
-    } catch (error) {
-      console.error('Error updating lead status:', error);
-      toast.error('Error updating lead status');
+  const updateStatus = (leadId, newStatus) => {
+    if (singleLead.disposition === newStatus) {
+      toast.info('Status is already set to ' + newStatus);
+      return;
     }
+    setConfirmTitle('Confirm Status Change');
+    setConfirmMessage(`Are you sure you want to change the status from "${singleLead.disposition || 'None'}" to "${newStatus}"?`);
+    setConfirmText('Change Status');
+    setConfirmAction(() => async () => {
+      try {
+        const response = await fetch(`http://localhost:3000/Lead/editstatus/${leadId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ disposition: newStatus }),
+        });
+
+        if (response.ok) {
+          toast.success('Status changed successfully');
+          const leadResponse = await fetch(`http://localhost:3000/Lead/getleadbyid/${leadId}`, {
+            credentials: 'include',
+          });
+          const updatedLead = await leadResponse.json();
+          if (!updatedLead.success) {
+            throw new Error(updatedLead.message || 'Failed to fetch updated lead');
+          }
+          setSingleLead(updatedLead.data);
+          setNotes(updatedLead.data.notes || []);
+          setSelectedDates(updatedLead.data.importantDates || []);
+          setEditForm({
+            name: updatedLead.data.name || '',
+            email: updatedLead.data.email || '',
+            phoneNumber: updatedLead.data.phoneNumber || '',
+            businessName: updatedLead.data.businessName || '',
+            businessAddress: updatedLead.data.businessAddress || '',
+            disposition: updatedLead.data.disposition || '',
+          });
+          setShowConfirmModal(false);
+        } else {
+          const errorText = await response.text();
+          console.error('Failed to update status:', errorText);
+          toast.error('Failed to update status');
+        }
+      } catch (error) {
+        console.error('Error updating lead status:', error);
+        toast.error('Error updating lead status');
+      }
+    });
+    setShowConfirmModal(true);
   };
 
   if (loading) {
@@ -324,11 +444,23 @@ const Lead = () => {
                   .map((note, index) => (
                     <div
                       key={index}
-                      className="p-3 bg-gray-50 rounded-lg border border-gray-200"
+                      className={`p-3 rounded-lg border border-gray-200 ${
+                        note.text.startsWith('Edited lead:') ? 'bg-blue-50' :
+                        note.text.startsWith('Added important date:') || note.text.startsWith('Removed important date:') ? 'bg-red-50' :
+                        'bg-gray-50'
+                      }`}
                     >
-                      <p className="text-sm text-gray-900">{note.text}</p>
+                      <p className="text-sm text-gray-900">
+                        {note.text.startsWith('Edited lead:') ? (
+                          <span className="font-medium text-blue-600">[Edit] </span>
+                        ) : note.text.startsWith('Added important date:') || note.text.startsWith('Removed important date:') ? (
+                          <span className="font-medium text-red-600">[Date] </span>
+                        ) : null}
+                        {note.text}
+                      </p>
                       <p className="text-xs text-gray-500">
-                        {new Date(note.createdAt).toLocaleString()}
+                        {new Date(note.createdAt).toLocaleString()} by{' '}
+                        <span className="font-medium text-indigo-600">{note.createdBy?.name || 'Unknown'}</span>
                       </p>
                     </div>
                   ))
@@ -377,8 +509,8 @@ const Lead = () => {
               <Calendar
                 onClickDay={handleDateClick}
                 tileClassName={({ date }) =>
-                  selectedDates.includes(date.toISOString().split('T')[0])
-                    ? 'bg-indigo-500 text-white rounded-full'
+                  selectedDates.includes(formatLocalDate(date))
+                    ? '!bg-red-500 text-white rounded-full'
                     : ''
                 }
                 className="border-none bg-transparent text-gray-900"
@@ -386,6 +518,53 @@ const Lead = () => {
             </div>
           </div>
         </div>
+
+        {/* Date Note Modal */}
+        {showDateNoteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md transform transition-all duration-300 ease-in-out scale-95 data-[is-open=true]:scale-100">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {isDateSelected ? 'Remove Date' : 'Add Date'} Note
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                {isDateSelected
+                  ? `Removing date: ${selectedDate}`
+                  : `Adding date: ${selectedDate}`}
+              </p>
+              <textarea
+                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 bg-white"
+                value={dateNote}
+                onChange={(e) => setDateNote(e.target.value)}
+                placeholder="Add an optional note..."
+                rows="4"
+              />
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  onClick={() => setShowDateNoteModal(false)}
+                  className="px-3 py-1 text-sm text-red-500 hover:text-red-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveDateNote}
+                  className="inline-flex items-center px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                >
+                  <Save className="h-4 w-4 mr-1" /> Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <ConfirmationModal
+          isOpen={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          onConfirm={confirmAction}
+          title={confirmTitle}
+          message={confirmMessage}
+          confirmText={confirmText}
+          cancelText="Cancel"
+        />
       </div>
     </div>
   );
