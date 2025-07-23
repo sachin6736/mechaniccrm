@@ -35,6 +35,42 @@ export const getAllSales = async (req, res) => {
       res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
   };
+
+  export const getCompletedSales = async (req, res) => {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+      const sortField = req.query.sortField || 'createdAt';
+      const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+  
+      console.log('Fetching completed sales with pagination:', { page, limit, skip, sortField, sortOrder });
+  
+      const sales = await Sale.find({ status: 'Completed' })
+        .sort({ [sortField]: sortOrder })
+        .skip(skip)
+        .limit(limit)
+        .populate('leadId', 'name businessName')
+        .populate('notes.createdBy', 'name email')
+        .lean();
+  
+      const totalSales = await Sale.countDocuments({ status: 'Completed' });
+  
+      res.status(200).json({
+        success: true,
+        data: sales,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalSales / limit),
+          totalSales,
+          hasMore: skip + sales.length < totalSales,
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching completed sales:', error);
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+  };
   
   export const getSaleById = async (req, res) => {
     try {
