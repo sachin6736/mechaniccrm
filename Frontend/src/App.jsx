@@ -9,6 +9,7 @@ import Lead from './components/Lead';
 import Sales from './components/Sales';
 import SaleDetails from './components/SaleDetails';
 import CompletedSales from './components/CompletedSales';
+import Team from './components/Team';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -18,17 +19,19 @@ export default function App() {
       <ToastContainer />
       <Routes>
         {/* Standalone routes without Navbar */}
-        <Route path="/" element={<Signup />} />
+        <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
         
         {/* Routes under Navbar */}
         <Route element={<Layout />}>
           <Route path="/AddLead" element={<AddLead />} />
-          <Route path="/leads" element={<Leads />} />  
+          <Route path="/leads" element={<Leads />} />
           <Route path="/lead/:id" element={<Lead />} />
           <Route path="/sales" element={<Sales />} />
           <Route path="/sale/:id" element={<SaleDetails />} />
           <Route path="/completed-sales" element={<CompletedSales />} />
+          <Route path="/team" element={<Team />} />
         </Route>
       </Routes>
     </BrowserRouter>

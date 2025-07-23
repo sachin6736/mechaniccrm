@@ -4,28 +4,74 @@ import User from '../Models/User.js';
 import mongoose from 'mongoose';
 import Lead from '../Models/Lead.js';
 
-export const signup = async (req, res) => {
+export const createUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'All fields are required' });
+    // Check if the requesting user is an admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only admins can create users' });
     }
+
+    const { name, email, password, role } = req.body;
+
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+
+    if (!['admin', 'sales'].includes(role)) {
+      return res.status(400).json({ success: false, message: 'Invalid role. Must be admin or sales' });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'Email already exists' });
+      return res.status(400).json({ success: false, message: 'Email already exists' });
     }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({
       name,
       email,
       password: hashedPassword,
-      role: role || 'sales'
+      role,
     });
+
     await user.save();
-    res.status(201).json({ message: 'User created successfully', user: { name, email, role } });
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+    });
   } catch (error) {
-    console.error('Signup error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Create user error:', error.message);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+export const getUsers = async (req, res) => {
+  try {
+    // Check if the requesting user is an admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only admins can view users' });
+    }
+
+    const users = await User.find().select('name email role').lean();
+
+    res.status(200).json({
+      success: true,
+      data: users,
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
