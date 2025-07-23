@@ -74,6 +74,12 @@ const saleSchema = new mongoose.Schema({
     required: false,
     default: null, // Set to null for draft sales
   },
+  partialPayments: [{
+    amount: { type: Number, required: true },
+    paymentDate: { type: Date, required: true },
+    createdAt: { type: Date, default: Date.now },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  }],
   notes: [{
     text: String,
     createdAt: { type: Date, default: Date.now },

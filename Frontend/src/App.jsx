@@ -7,6 +7,7 @@ import AddLead from './components/AddLead';
 import Leads from './components/Leads';
 import Lead from './components/Lead';
 import Sales from './components/Sales';
+import SaleDetails from './components/SaleDetails'; // Import SaleDetails
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/leads" element={<Leads />} />  
           <Route path="/lead/:id" element={<Lead />} />
           <Route path="/sales" element={<Sales />} />
+          <Route path="/sale/:id" element={<SaleDetails />} /> {/* Add SaleDetails route */}
         </Route>
       </Routes>
     </BrowserRouter>

@@ -162,7 +162,7 @@ export const createLead = async (req, res) => {
     }
   };
 
-export const updateNotes = async (req, res) => {
+  export const updateNotes = async (req, res) => {
     try {
       const { text } = req.body;
       const { id } = req.params; // Lead ID
@@ -184,9 +184,9 @@ export const updateNotes = async (req, res) => {
         createdBy: userId,
       });
   
-      await lead.save();
+      const updatedLead = await lead.save();
   
-      res.status(200).json({ success: true, message: 'Note added successfully', lead });
+      res.status(200).json({ success: true, message: 'Note added successfully', data: updatedLead });
     } catch (error) {
       console.error('Error adding note:', error);
       res.status(500).json({ success: false, message: 'Server error', error: error.message });
