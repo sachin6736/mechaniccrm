@@ -1,5 +1,5 @@
 import express from 'express';
-import { signup, login,logout,} from '../controllers/userController.js';
+import { login,logout,createUser, getUsers} from '../controllers/userController.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -12,7 +12,8 @@ router.get('/check-auth', authMiddleware, (req, res) => {
   });
 });
 
-router.post('/signup', signup);
+router.post('/create-user', authMiddleware, createUser);
+router.get('/users', authMiddleware, getUsers);
 router.post('/login', login);
 router.post('/logout', authMiddleware, logout);
 
