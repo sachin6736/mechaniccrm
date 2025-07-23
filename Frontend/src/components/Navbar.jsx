@@ -52,10 +52,10 @@ const Navbar = () => {
       },
     },
     {
-      label: 'Payment Status',
+      label: 'Orders',
       icon: <DollarSign className="h-6 w-6 text-indigo-600" />,
       onClick: () => {
-        navigate('/payment-status');
+        navigate('/completed-sales');
         setShowSidebar(false);
       },
     },
