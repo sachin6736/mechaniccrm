@@ -5,7 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { Edit, Save } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 
-const statusOptions = ['Pending', 'Completed', 'Failed', 'Refunded', 'Part-Payment'];
+const statusOptions = ['Pending', 'Completed', 'Failed', 'Refunded'];
 const paymentMethodOptions = ['Credit Card', 'Bank Transfer', 'PayPal', 'Other'];
 const paymentTypeOptions = ['Recurring', 'One-time'];
 
@@ -14,7 +14,6 @@ const statusTextColors = {
   Completed: 'bg-green-100 text-green-800',
   Failed: 'bg-red-100 text-red-800',
   Refunded: 'bg-gray-100 text-gray-800',
-  'Part-Payment': 'bg-blue-100 text-blue-800',
 };
 
 const SaleDetails = () => {
@@ -181,6 +180,22 @@ const SaleDetails = () => {
     setShowConfirmModal(true);
   };
 
+  const calculateRemainingAmount = () => {
+    if (!sale || !sale.totalAmount) return 0;
+    const paidAmount = sale.partialPayments
+      ? sale.partialPayments.reduce((sum, payment) => sum + payment.amount, 0)
+      : 0;
+    return sale.totalAmount - paidAmount;
+  };
+
+  const calculatePartialPayment = () => {
+    if (sale?.paymentType === 'Recurring' && sale?.totalAmount && sale?.contractTerm) {
+      const months = parseInt(sale.contractTerm);
+      return months > 0 ? (sale.totalAmount / months).toFixed(2) : '0.00';
+    }
+    return null;
+  };
+
   const handleEditPayment = () => {
     if (
       !paymentForm.totalAmount ||
@@ -220,6 +235,24 @@ const SaleDetails = () => {
       return;
     }
 
+    // Validation for payment updates
+    const currentDate = new Date();
+    const contractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : null;
+    const remainingAmount = calculateRemainingAmount();
+
+    if (paymentForm.paymentType === 'One-time' && contractEndDate && contractEndDate > currentDate) {
+      toast.warning('Cannot update payment details for one-time payment until contract end date is reached');
+      return;
+    }
+
+    if (paymentForm.paymentType === 'Recurring') {
+      const partialPaymentAmount = parseFloat(paymentForm.totalAmount) / parseInt(paymentForm.contractTerm);
+      if (remainingAmount <= 0 && contractEndDate && contractEndDate > currentDate) {
+        toast.warning('Cannot update payment details for recurring payment as full payment is received and contract term is not over');
+        return;
+      }
+    }
+
     setShowPaymentModal(false);
 
     setConfirmTitle('Confirm Payment Update');
@@ -227,14 +260,45 @@ const SaleDetails = () => {
     setConfirmText('Save Changes');
     setConfirmAction(() => async () => {
       try {
-        const partialPayment = {
-          amount: paymentForm.paymentType === 'Recurring'
-            ? parseFloat(paymentForm.totalAmount) / parseInt(paymentForm.contractTerm)
-            : parseFloat(paymentForm.totalAmount),
-          paymentDate: new Date().toISOString(),
-          createdAt: new Date(),
-          createdBy: null,
-        };
+        const paymentDate = new Date();
+        let newContractEndDate = new Date(paymentDate);
+        let partialPayment = null;
+        let previousContract = null;
+
+        if (paymentForm.paymentType === 'Recurring') {
+          const partialPaymentAmount = parseFloat(paymentForm.totalAmount) / parseInt(paymentForm.contractTerm);
+          if (remainingAmount > 0 && partialPaymentAmount > remainingAmount) {
+            toast.warning(`Partial payment amount (${partialPaymentAmount.toFixed(2)}) exceeds remaining amount (${remainingAmount.toFixed(2)})`);
+            return;
+          }
+          partialPayment = {
+            amount: partialPaymentAmount,
+            paymentDate: paymentDate.toISOString(),
+            createdAt: new Date(),
+            createdBy: null,
+          };
+          newContractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : new Date(paymentDate);
+          newContractEndDate.setMonth(newContractEndDate.getMonth() + 1);
+        } else {
+          newContractEndDate.setMonth(newContractEndDate.getMonth() + parseInt(paymentForm.contractTerm));
+        }
+
+        // If contractEndDate exists and is in the past, save current contract to previousContracts
+        if (contractEndDate && contractEndDate <= currentDate) {
+          previousContract = {
+            totalAmount: sale.totalAmount,
+            paymentType: sale.paymentType,
+            contractTerm: sale.contractTerm,
+            paymentMethod: sale.paymentMethod,
+            card: sale.card,
+            exp: sale.exp,
+            cvv: sale.cvv,
+            paymentDate: sale.paymentDate,
+            contractEndDate: sale.contractEndDate,
+            partialPayments: sale.partialPayments || [],
+            createdAt: new Date(),
+          };
+        }
 
         const response = await fetch(`http://localhost:3000/sale/updatesale/${id}`, {
           method: 'PUT',
@@ -248,15 +312,22 @@ const SaleDetails = () => {
             card: paymentForm.card,
             exp: paymentForm.exp,
             cvv: paymentForm.cvv,
-            status: paymentForm.paymentType === 'Recurring' ? 'Part-Payment' : 'Completed',
-            partialPayments: sale.partialPayments
-              ? [...sale.partialPayments, partialPayment]
-              : [partialPayment],
-            paymentDate: new Date().toISOString(),
+            partialPayments: partialPayment
+              ? sale.partialPayments
+                ? [...sale.partialPayments, partialPayment]
+                : [partialPayment]
+              : sale.partialPayments || [],
+            paymentDate: paymentDate.toISOString(),
+            contractEndDate: newContractEndDate.toISOString(),
+            previousContracts: previousContract
+              ? sale.previousContracts
+                ? [...sale.previousContracts, previousContract]
+                : [previousContract]
+              : sale.previousContracts || [],
             notes: [
               ...(sale.notes || []),
               {
-                text: `Updated payment details: Total Amount $${parseFloat(paymentForm.totalAmount).toFixed(2)}, Payment Method: ${paymentForm.paymentMethod}, Payment Type: ${paymentForm.paymentType}, Contract Term: ${paymentForm.contractTerm} months`,
+                text: `Updated payment details: Total Amount $${parseFloat(paymentForm.totalAmount).toFixed(2)}, Payment Method: ${paymentForm.paymentMethod}, Payment Type: ${paymentForm.paymentType}, Contract Term: ${paymentForm.contractTerm} months, Contract End Date: ${newContractEndDate.toLocaleDateString()}`,
                 createdAt: new Date(),
                 createdBy: null, // Update with actual user ID if available
               },
@@ -294,22 +365,6 @@ const SaleDetails = () => {
       }
     });
     setShowConfirmModal(true);
-  };
-
-  const calculateRemainingAmount = () => {
-    if (!sale || !sale.totalAmount) return 0;
-    const paidAmount = sale.partialPayments
-      ? sale.partialPayments.reduce((sum, payment) => sum + payment.amount, 0)
-      : 0;
-    return sale.totalAmount - paidAmount;
-  };
-
-  const calculatePartialPayment = () => {
-    if (sale?.paymentType === 'Recurring' && sale?.totalAmount && sale?.contractTerm) {
-      const months = parseInt(sale.contractTerm);
-      return months > 0 ? (sale.totalAmount / months).toFixed(2) : '0.00';
-    }
-    return null;
   };
 
   if (loading) {
@@ -533,6 +588,11 @@ const SaleDetails = () => {
                 },
                 { label: 'Payment Type', key: 'paymentType' },
                 { label: 'Contract Term', key: 'contractTerm' },
+                {
+                  label: 'Contract End Date',
+                  key: 'contractEndDate',
+                  format: (value) => (value ? new Date(value).toLocaleDateString() : 'Not set'),
+                },
                 { label: 'Payment Method', key: 'paymentMethod' },
                 { label: 'Status', key: 'status' },
                 {

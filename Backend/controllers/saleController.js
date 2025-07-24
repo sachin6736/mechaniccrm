@@ -172,7 +172,32 @@ export const getAllSales = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Sale not found' });
       }
   
-      // Validation
+      // Calculate remaining amount
+      const remainingAmount = sale.totalAmount - (sale.partialPayments ? sale.partialPayments.reduce((sum, payment) => sum + payment.amount, 0) : 0);
+      const currentDate = new Date();
+      const contractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : null;
+  
+      // Validation for one-time payments
+      if (updates.paymentType === 'One-time' && contractEndDate && contractEndDate > currentDate) {
+        return res.status(400).json({ success: false, message: 'Cannot update payment details for one-time payment until contract end date is reached' });
+      }
+  
+      // Validation for recurring payments
+      if (updates.paymentType === 'Recurring') {
+        const partialPaymentAmount = updates.totalAmount ? parseFloat(updates.totalAmount) / parseInt(updates.contractTerm || sale.contractTerm) : sale.totalAmount / parseInt(sale.contractTerm);
+        if (remainingAmount <= 0 && contractEndDate && contractEndDate > currentDate) {
+          return res.status(400).json({ success: false, message: 'Cannot update payment details for recurring payment as full payment is received and contract term is not over' });
+        }
+        if (updates.partialPayments) {
+          for (const payment of updates.partialPayments) {
+            if (payment.amount !== partialPaymentAmount) {
+              return res.status(400).json({ success: false, message: `Partial payment amount must be ${partialPaymentAmount.toFixed(2)}` });
+            }
+          }
+        }
+      }
+  
+      // General validation
       if (updates.totalAmount && (isNaN(updates.totalAmount) || updates.totalAmount < 0)) {
         return res.status(400).json({ success: false, message: 'Invalid total amount' });
       }
@@ -211,6 +236,33 @@ export const getAllSales = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid payment date' });
       }
   
+      // Calculate contractEndDate
+      let newContractEndDate = updates.paymentDate ? new Date(updates.paymentDate) : sale.paymentDate ? new Date(sale.paymentDate) : new Date();
+      if (updates.paymentType === 'Recurring' && updates.partialPayments && updates.partialPayments.length > 0) {
+        newContractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : new Date(updates.paymentDate || sale.paymentDate || new Date());
+        newContractEndDate.setMonth(newContractEndDate.getMonth() + 1);
+      } else if (updates.paymentType === 'One-time') {
+        newContractEndDate.setMonth(newContractEndDate.getMonth() + parseInt(updates.contractTerm || sale.contractTerm));
+      }
+  
+      // Move current contract to previousContracts if contractEndDate is in the past
+      let previousContracts = sale.previousContracts || [];
+      if (contractEndDate && contractEndDate <= currentDate) {
+        previousContracts.push({
+          totalAmount: sale.totalAmount,
+          paymentType: sale.paymentType,
+          contractTerm: sale.contractTerm,
+          paymentMethod: sale.paymentMethod,
+          card: sale.card,
+          exp: sale.exp,
+          cvv: sale.cvv,
+          paymentDate: sale.paymentDate,
+          contractEndDate: sale.contractEndDate,
+          partialPayments: sale.partialPayments || [],
+          createdAt: new Date(),
+        });
+      }
+  
       // Add note for payment update
       if (
         updates.partialPayments ||
@@ -223,19 +275,17 @@ export const getAllSales = async (req, res) => {
         updates.cvv
       ) {
         sale.notes.push({
-          text: 'Updated payment details',
+          text: `Updated payment details: Total Amount $${parseFloat(updates.totalAmount || sale.totalAmount).toFixed(2)}, Payment Method: ${updates.paymentMethod || sale.paymentMethod || 'Not set'}, Payment Type: ${updates.paymentType || sale.paymentType || 'Not set'}, Contract Term: ${updates.contractTerm || sale.contractTerm} months, Contract End Date: ${newContractEndDate.toLocaleDateString()}`,
           createdAt: new Date(),
           createdBy: userId,
         });
-        // Add note for payment confirmation with total amount, contract term, and payment type
         sale.notes.push({
           text: `Payment confirmed by user. Total Amount: $${parseFloat(updates.totalAmount || sale.totalAmount).toFixed(2)}, Contract Term: ${updates.contractTerm || sale.contractTerm} months, Payment Type: ${updates.paymentType || sale.paymentType || 'Not set'}`,
           createdAt: new Date(),
           createdBy: userId,
         });
-        // Set status based on payment type
         sale.status = updates.paymentType === 'Recurring' ? 'Part-Payment' : 'Completed';
-        sale.paymentDate = new Date(); // Automatically set paymentDate to current date
+        sale.paymentDate = updates.paymentDate || new Date();
       }
   
       if (updates.card || updates.exp || updates.cvv) {
@@ -258,6 +308,8 @@ export const getAllSales = async (req, res) => {
         status: sale.status, // Use the updated status
         partialPayments: updates.partialPayments !== undefined ? updates.partialPayments : sale.partialPayments || [],
         paymentDate: sale.paymentDate, // Use the updated paymentDate
+        contractEndDate: newContractEndDate,
+        previousContracts: previousContracts,
       });
   
       await sale.save();

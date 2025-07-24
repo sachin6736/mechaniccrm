@@ -74,11 +74,34 @@ const saleSchema = new mongoose.Schema({
     required: false,
     default: null, // Set to null for draft sales
   },
+  contractEndDate: {
+    type: Date,
+    required: false,
+    default: null, // Calculated as paymentDate + contractTerm months
+  },
   partialPayments: [{
     amount: { type: Number, required: true },
     paymentDate: { type: Date, required: true },
     createdAt: { type: Date, default: Date.now },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  }],
+  previousContracts: [{
+    totalAmount: { type: Number, required: true },
+    paymentType: { type: String, enum: ['Recurring', 'One-time', null] },
+    contractTerm: { type: String },
+    paymentMethod: { type: String, enum: ['Credit Card', 'Bank Transfer', 'PayPal', 'Other', null] },
+    card: { type: String },
+    exp: { type: String },
+    cvv: { type: String },
+    paymentDate: { type: Date },
+    contractEndDate: { type: Date },
+    partialPayments: [{
+      amount: { type: Number, required: true },
+      paymentDate: { type: Date, required: true },
+      createdAt: { type: Date, default: Date.now },
+      createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    }],
+    createdAt: { type: Date, default: Date.now },
   }],
   notes: [{
     text: String,
