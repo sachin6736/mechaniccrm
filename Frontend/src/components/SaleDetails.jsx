@@ -5,7 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { Edit, Save } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 
-const statusOptions = ['Pending', 'Completed', 'Failed', 'Refunded'];
+const statusOptions = ['Pending', 'Completed', 'Failed', 'Refunded', 'Part-Payment'];
 const paymentMethodOptions = ['Credit Card', 'Bank Transfer', 'PayPal', 'Other'];
 const paymentTypeOptions = ['Recurring', 'One-time'];
 
@@ -14,6 +14,7 @@ const statusTextColors = {
   Completed: 'bg-green-100 text-green-800',
   Failed: 'bg-red-100 text-red-800',
   Refunded: 'bg-gray-100 text-gray-800',
+  'Part-Payment': 'bg-blue-100 text-blue-800',
 };
 
 const SaleDetails = () => {
@@ -247,6 +248,7 @@ const SaleDetails = () => {
             card: paymentForm.card,
             exp: paymentForm.exp,
             cvv: paymentForm.cvv,
+            status: paymentForm.paymentType === 'Recurring' ? 'Part-Payment' : 'Completed',
             partialPayments: sale.partialPayments
               ? [...sale.partialPayments, partialPayment]
               : [partialPayment],

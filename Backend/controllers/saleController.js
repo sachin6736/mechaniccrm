@@ -151,7 +151,7 @@ export const getAllSales = async (req, res) => {
       if (updates.contractTerm === undefined || updates.contractTerm === null || isNaN(updates.contractTerm) || parseInt(updates.contractTerm) <= 0) {
         return res.status(400).json({ success: false, message: 'Contract term is required and must be a positive number' });
       }
-      if (updates.status && !['Pending', 'Completed', 'Failed', 'Refunded'].includes(updates.status)) {
+      if (updates.status && !['Pending', 'Completed', 'Failed', 'Refunded', 'Part-Payment'].includes(updates.status)) {
         return res.status(400).json({ success: false, message: 'Invalid status' });
       }
       if (updates.card && !/^\d{16}$/.test(updates.card)) {
@@ -199,7 +199,8 @@ export const getAllSales = async (req, res) => {
           createdAt: new Date(),
           createdBy: userId,
         });
-        sale.status = 'Completed'; // Automatically set status to Completed
+        // Set status based on payment type
+        sale.status = updates.paymentType === 'Recurring' ? 'Part-Payment' : 'Completed';
         sale.paymentDate = new Date(); // Automatically set paymentDate to current date
       }
   
@@ -232,4 +233,4 @@ export const getAllSales = async (req, res) => {
       console.error('Error updating sale:', error);
       res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
-  };
+};

@@ -14,11 +14,11 @@ const migrateSales = async () => {
     console.log('Connected to MongoDB');
 
     const result = await Sale.updateMany(
-      { status: { $in: ['Verifying', 'PartPayment'] } },
-      { $set: { status: 'Pending' } }
+      { status: 'Part-Payment' },
+      { $set: { status: 'PartPayment' } }
     );
 
-    console.log(`Updated ${result.modifiedCount} sales with status Verifying or PartPayment to Pending`);
+    console.log(`Updated ${result.modifiedCount} sales with status Part-Payment to PartPayment`);
 
     await mongoose.connection.close();
     console.log('MongoDB connection closed');
