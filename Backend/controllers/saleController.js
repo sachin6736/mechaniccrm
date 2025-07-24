@@ -238,6 +238,8 @@ export const getAllSales = async (req, res) => {
   
       // Calculate contractEndDate
       let newContractEndDate = updates.paymentDate ? new Date(updates.paymentDate) : sale.paymentDate ? new Date(sale.paymentDate) : new Date();
+      let updatedPartialPayments = updates.partialPayments || sale.partialPayments || [];
+  
       if (updates.paymentType === 'Recurring' && updates.partialPayments && updates.partialPayments.length > 0) {
         newContractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : new Date(updates.paymentDate || sale.paymentDate || new Date());
         newContractEndDate.setMonth(newContractEndDate.getMonth() + 1);
@@ -245,7 +247,7 @@ export const getAllSales = async (req, res) => {
         newContractEndDate.setMonth(newContractEndDate.getMonth() + parseInt(updates.contractTerm || sale.contractTerm));
       }
   
-      // Move current contract to previousContracts if contractEndDate is in the past
+      // Move current contract to previousContracts and clear partialPayments if contractEndDate is in the past
       let previousContracts = sale.previousContracts || [];
       if (contractEndDate && contractEndDate <= currentDate) {
         previousContracts.push({
@@ -261,6 +263,13 @@ export const getAllSales = async (req, res) => {
           partialPayments: sale.partialPayments || [],
           createdAt: new Date(),
         });
+        updatedPartialPayments = []; // Clear partialPayments for new contract
+        newContractEndDate = new Date(updates.paymentDate || new Date());
+        if (updates.paymentType === 'One-time') {
+          newContractEndDate.setMonth(newContractEndDate.getMonth() + parseInt(updates.contractTerm || sale.contractTerm));
+        } else {
+          newContractEndDate.setMonth(newContractEndDate.getMonth() + 1);
+        }
       }
   
       // Add note for payment update
@@ -306,7 +315,7 @@ export const getAllSales = async (req, res) => {
         exp: updates.exp !== undefined ? updates.exp : sale.exp,
         cvv: updates.cvv !== undefined ? updates.cvv : sale.cvv,
         status: sale.status, // Use the updated status
-        partialPayments: updates.partialPayments !== undefined ? updates.partialPayments : sale.partialPayments || [],
+        partialPayments: updatedPartialPayments,
         paymentDate: sale.paymentDate, // Use the updated paymentDate
         contractEndDate: newContractEndDate,
         previousContracts: previousContracts,
