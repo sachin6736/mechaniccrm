@@ -1,8 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, Search } from 'lucide-react';
+
+// Custom debounce function
+const debounce = (func, wait) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
 
 const Sales = () => {
   const navigate = useNavigate();
@@ -13,13 +22,17 @@ const Sales = () => {
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalSales: 0, hasMore: false });
   const [sortField, setSortField] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
 
-  const fetchSales = async (pageNum, sort = sortField, order = sortOrder) => {
+  const fetchSales = async (pageNum, search = searchQuery, status = filterStatus, sort = sortField, order = sortOrder) => {
     try {
       setLoading(true);
       const query = new URLSearchParams({
         page: pageNum,
         limit: 10,
+        ...(search && { search }),
+        ...(status && { status }),
         sortField: sort,
         sortOrder: order,
       }).toString();
@@ -52,6 +65,14 @@ const Sales = () => {
     }
   };
 
+  // Debounced version of fetchSales for search
+  const debouncedFetchSales = useCallback(
+    debounce((pageNum, search, status, sort, order) => {
+      fetchSales(pageNum, search, status, sort, order);
+    }, 300),
+    [] // Empty dependency array since fetchSales doesn't depend on external state
+  );
+
   useEffect(() => {
     fetchSales(1);
   }, []);
@@ -62,14 +83,28 @@ const Sales = () => {
     setSortField(field);
     setSortOrder(newSortOrder);
     setPage(1);
-    fetchSales(1, field, newSortOrder);
+    fetchSales(1, searchQuery, filterStatus, field, newSortOrder);
+  };
+
+  const handleSearchChange = (e) => {
+    const newSearchQuery = e.target.value;
+    setSearchQuery(newSearchQuery);
+    setPage(1);
+    debouncedFetchSales(1, newSearchQuery, filterStatus, sortField, sortOrder);
+  };
+
+  const handleFilterChange = (e) => {
+    const newStatus = e.target.value;
+    setFilterStatus(newStatus);
+    setPage(1);
+    fetchSales(1, searchQuery, newStatus, sortField, sortOrder);
   };
 
   const handleNextPage = () => {
     if (pagination.hasMore) {
       const nextPage = page + 1;
       setPage(nextPage);
-      fetchSales(nextPage);
+      fetchSales(nextPage, searchQuery, filterStatus);
     }
   };
 
@@ -77,13 +112,13 @@ const Sales = () => {
     if (page > 1) {
       const prevPage = page - 1;
       setPage(prevPage);
-      fetchSales(prevPage);
+      fetchSales(prevPage, searchQuery, filterStatus);
     }
   };
 
   const handlePageClick = (pageNum) => {
     setPage(pageNum);
-    fetchSales(pageNum);
+    fetchSales(pageNum, searchQuery, filterStatus);
   };
 
   const renderSkeletonLoader = () => (
@@ -130,6 +165,44 @@ const Sales = () => {
             Back to Leads
           </button>
         </div>
+
+        <div className="mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          <div>
+            <label htmlFor="searchQuery" className="block text-sm font-medium text-gray-700 mb-1">
+              Search Sales
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                id="searchQuery"
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                placeholder="Search by name, business name, email, or phone"
+                className="w-full sm:w-64 pl-10 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 text-sm bg-white shadow-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700 mb-1">
+              Filter by Status
+            </label>
+            <select
+              id="statusFilter"
+              value={filterStatus}
+              onChange={handleFilterChange}
+              className="w-full sm:w-64 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 text-sm bg-white shadow-sm"
+            >
+              <option value="">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Completed">Completed</option>
+              <option value="Failed">Failed</option>
+              <option value="Refunded">Refunded</option>
+              <option value="Part-Payment">Part-Payment</option>
+            </select>
+          </div>
+        </div>
+
         <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
           {loading ? (
             <div className="p-6">{renderSkeletonLoader()}</div>
@@ -212,6 +285,10 @@ const Sales = () => {
                                 ? 'bg-yellow-100 text-yellow-800'
                                 : sale.status === 'Failed'
                                 ? 'bg-red-100 text-red-800'
+                                : sale.status === 'Refunded'
+                                ? 'bg-red-100 text-red-800'
+                                : sale.status === 'Part-Payment'
+                                ? 'bg-blue-100 text-blue-800'
                                 : 'bg-gray-100 text-gray-800'
                             }`}
                           >

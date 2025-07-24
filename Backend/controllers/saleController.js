@@ -3,38 +3,72 @@ import Sale from '../Models/Sale.js';
 import Lead from '../Models/Lead.js';
 
 export const getAllSales = async (req, res) => {
-    try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const skip = (page - 1) * limit;
-  
-      console.log('Fetching sales with pagination:', { page, limit, skip });
-  
-      const sales = await Sale.find()
-        .sort({ createdAt: -1 }) // Sort by createdAt descending
-        .skip(skip)
-        .limit(limit)
-        .populate('leadId', 'name businessName') // Populate name and businessName
-        .populate('notes.createdBy', 'name email')
-        .lean();
-  
-      const totalSales = await Sale.countDocuments();
-  
-      res.status(200).json({
-        success: true,
-        data: sales,
-        pagination: {
-          currentPage: page,
-          totalPages: Math.ceil(totalSales / limit),
-          totalSales,
-          hasMore: skip + sales.length < totalSales,
-        },
-      });
-    } catch (error) {
-      console.error('Error fetching sales:', error);
-      res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const sortField = req.query.sortField || 'createdAt';
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+    const search = req.query.search || '';
+    const status = req.query.status || '';
+
+    console.log('Fetching sales with params:', { page, limit, skip, sortField, sortOrder, search, status });
+
+    // Build query
+    const query = {};
+    if (status) {
+      query.status = status;
     }
-  };
+    if (search) {
+      const searchRegex = new RegExp(search, 'i'); // Case-insensitive regex
+      query.$or = [
+        { name: searchRegex },
+        { email: searchRegex },
+        { phoneNumber: searchRegex },
+        { businessName: searchRegex },
+      ];
+    }
+
+    // Map frontend sort fields to MongoDB sort fields
+    const sortMapping = {
+      'leadId.name': 'name',
+      'leadId.businessName': 'businessName',
+      totalAmount: 'totalAmount',
+      paymentType: 'paymentType',
+      contractTerm: 'contractTerm',
+      paymentMethod: 'paymentMethod',
+      status: 'status',
+      paymentDate: 'paymentDate',
+      createdAt: 'createdAt',
+    };
+
+    const sort = { [sortMapping[sortField] || 'createdAt']: sortOrder };
+
+    const sales = await Sale.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .populate('leadId', 'name businessName')
+      .populate('notes.createdBy', 'name email')
+      .lean();
+
+    const totalSales = await Sale.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: sales,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalSales / limit),
+        totalSales,
+        hasMore: skip + sales.length < totalSales,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching sales:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
 
   export const getCompletedSales = async (req, res) => {
     try {
