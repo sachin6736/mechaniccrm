@@ -80,15 +80,20 @@ export const getAllSales = async (req, res) => {
   
       console.log('Fetching completed sales with pagination:', { page, limit, skip, sortField, sortOrder });
   
-      const sales = await Sale.find({ status: 'Completed' })
+      const sales = await Sale.find({ status: { $in: ['Completed', 'Part-Payment'] } })
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit)
         .populate('leadId', 'name businessName')
         .populate('notes.createdBy', 'name email')
         .lean();
+
+      console.log("Sales",sales);
+      
   
-      const totalSales = await Sale.countDocuments({ status: 'Completed' });
+      const totalSales = await Sale.countDocuments({ status: { $in: ['Completed', 'Part-Payment'] } });
+      console.log("Totalsales",totalSales);
+      
   
       res.status(200).json({
         success: true,
