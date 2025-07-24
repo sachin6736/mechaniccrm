@@ -1,8 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Users, ChevronUp, ChevronDown, PlusCircle, Search } from 'lucide-react';
+
+// Custom debounce function
+const debounce = (func, wait) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
 
 const Leads = () => {
   const [leads, setLeads] = useState([]);
@@ -50,6 +59,14 @@ const Leads = () => {
     }
   };
 
+  // Debounced version of fetchLeads for search
+  const debouncedFetchLeads = useCallback(
+    debounce((pageNum, disposition, search, sort, order) => {
+      fetchLeads(pageNum, disposition, search, sort, order);
+    }, 300),
+    [] // Empty dependency array since fetchLeads doesn't depend on external state
+  );
+
   useEffect(() => {
     fetchLeads(1);
   }, []);
@@ -74,7 +91,7 @@ const Leads = () => {
     const newSearchQuery = e.target.value;
     setSearchQuery(newSearchQuery);
     setPage(1);
-    fetchLeads(1, filterDisposition, newSearchQuery, sortField, sortOrder);
+    debouncedFetchLeads(1, filterDisposition, newSearchQuery, sortField, sortOrder);
   };
 
   const handleNextPage = () => {
