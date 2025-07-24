@@ -41,8 +41,35 @@ const SaleDetails = () => {
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmText, setConfirmText] = useState('Confirm');
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
+    const fetchUserRole = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/Auth/check-auth', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setUserRole(data.user.role);
+          } else {
+            console.error('Failed to fetch user role:', data.message);
+            toast.error('Failed to authenticate user');
+          }
+        } else {
+          console.error('Auth check failed:', response.status);
+          toast.error('Authentication check failed');
+        }
+      } catch (err) {
+        console.error('Error fetching user role:', err);
+        toast.error('Error checking authentication');
+      }
+    };
+    console.log("UserRole",userRole);
+    
+
     const fetchSale = async () => {
       try {
         setLoading(true);
@@ -81,12 +108,20 @@ const SaleDetails = () => {
     };
 
     if (id) {
+      fetchUserRole();
       fetchSale();
     } else {
       toast.error('Invalid sale ID');
       navigate('/sale/sales');
     }
   }, [id, navigate]);
+
+  // Log userRole when it changes
+  useEffect(() => {
+    if (userRole !== null) {
+      console.log('UserRole:', userRole);
+    }
+  }, [userRole]);
 
   const handleSaveNotes = async () => {
     if (!newNote.trim()) {
@@ -512,10 +547,14 @@ const SaleDetails = () => {
                 {
                   label: 'Card Number',
                   key: 'card',
-                  format: (value) => `**** **** **** ${value.slice(-4)}`,
+                  format: (value) => userRole === 'admin' ? value : `**** **** **** ${value.slice(-4)}`,
                 },
                 { label: 'Expiration Date', key: 'exp' },
-                { label: 'CVV', key: 'cvv', format: () => '***' },
+                {
+                  label: 'CVV',
+                  key: 'cvv',
+                  format: (value) => userRole === 'admin' ? value : '***',
+                },
                 {
                   label: 'Total Amount ($)',
                   key: 'totalAmount',
