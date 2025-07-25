@@ -26,9 +26,9 @@ const SaleDetails = () => {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
-    totalAmount: '0',
-    paymentMethod: 'Other',
-    paymentType: 'One-time',
+    totalAmount: '',
+    paymentMethod: '',
+    paymentType: '',
     contractTerm: '',
     card: '',
     exp: '',
@@ -88,13 +88,13 @@ const SaleDetails = () => {
         setSale(data.data);
         setNotes(data.data.notes || []);
         setPaymentForm({
-          totalAmount: data.data.totalAmount?.toString() || '0',
-          paymentMethod: data.data.paymentMethod || 'Other',
-          paymentType: data.data.paymentType || 'One-time',
-          contractTerm: data.data.contractTerm || '',
-          card: data.data.card || '',
-          exp: data.data.exp || '',
-          cvv: data.data.cvv || '',
+          totalAmount: '',
+          paymentMethod: '',
+          paymentType: '',
+          contractTerm: '',
+          card: '',
+          exp: '',
+          cvv: '',
         });
         setLoading(false);
       } catch (err) {
@@ -192,13 +192,13 @@ const SaleDetails = () => {
           setSale(updatedSale.data);
           setNotes(updatedSale.data.notes || []);
           setPaymentForm({
-            totalAmount: updatedSale.data.totalAmount?.toString() || '0',
-            paymentMethod: updatedSale.data.paymentMethod || 'Other',
-            paymentType: updatedSale.data.paymentType || 'One-time',
-            contractTerm: updatedSale.data.contractTerm || '',
-            card: updatedSale.data.card || '',
-            exp: updatedSale.data.exp || '',
-            cvv: updatedSale.data.cvv || '',
+            totalAmount: '',
+            paymentMethod: '',
+            paymentType: '',
+            contractTerm: '',
+            card: '',
+            exp: '',
+            cvv: '',
           });
           setShowConfirmModal(false);
         } else {
@@ -281,6 +281,10 @@ const SaleDetails = () => {
 
     if (paymentForm.paymentType === 'Recurring') {
       const partialPaymentAmount = parseFloat(paymentForm.totalAmount) / parseInt(paymentForm.contractTerm);
+      if (remainingAmount > 0 && partialPaymentAmount > remainingAmount) {
+        toast.warning(`Partial payment amount (${partialPaymentAmount.toFixed(2)}) exceeds remaining amount (${remainingAmount.toFixed(2)})`);
+        return;
+      }
       if (remainingAmount <= 0 && contractEndDate && contractEndDate > currentDate) {
         toast.warning('Cannot update payment details for recurring payment as full payment is received and contract term is not over');
         return;
@@ -298,6 +302,7 @@ const SaleDetails = () => {
         let newContractEndDate = new Date(paymentDate);
         let partialPayment = null;
         let previousContract = null;
+        let updatedPartialPayments = sale.partialPayments || [];
 
         if (paymentForm.paymentType === 'Recurring') {
           const partialPaymentAmount = parseFloat(paymentForm.totalAmount) / parseInt(paymentForm.contractTerm);
@@ -313,11 +318,10 @@ const SaleDetails = () => {
           };
           newContractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : new Date(paymentDate);
           newContractEndDate.setMonth(newContractEndDate.getMonth() + 1);
-        } else {
-          newContractEndDate.setMonth(newContractEndDate.getMonth() + parseInt(paymentForm.contractTerm));
+          updatedPartialPayments = sale.partialPayments ? [...sale.partialPayments, partialPayment] : [partialPayment];
         }
 
-        // If contractEndDate exists and is in the past, save current contract to previousContracts
+        // If contractEndDate exists and is in the past, save current contract to previousContracts and clear partialPayments
         if (contractEndDate && contractEndDate <= currentDate) {
           previousContract = {
             totalAmount: sale.totalAmount,
@@ -332,6 +336,13 @@ const SaleDetails = () => {
             partialPayments: sale.partialPayments || [],
             createdAt: new Date(),
           };
+          updatedPartialPayments = []; // Clear partialPayments for new contract
+          newContractEndDate = new Date(paymentDate);
+          if (paymentForm.paymentType === 'One-time') {
+            newContractEndDate.setMonth(newContractEndDate.getMonth() + parseInt(paymentForm.contractTerm));
+          } else {
+            newContractEndDate.setMonth(newContractEndDate.getMonth() + 1);
+          }
         }
 
         const response = await fetch(`http://localhost:3000/sale/updatesale/${id}`, {
@@ -346,11 +357,7 @@ const SaleDetails = () => {
             card: paymentForm.card,
             exp: paymentForm.exp,
             cvv: paymentForm.cvv,
-            partialPayments: partialPayment
-              ? sale.partialPayments
-                ? [...sale.partialPayments, partialPayment]
-                : [partialPayment]
-              : sale.partialPayments || [],
+            partialPayments: updatedPartialPayments,
             paymentDate: paymentDate.toISOString(),
             contractEndDate: newContractEndDate.toISOString(),
             previousContracts: previousContract
@@ -376,13 +383,13 @@ const SaleDetails = () => {
           }
           setSale(updatedSale.data);
           setPaymentForm({
-            totalAmount: updatedSale.data.totalAmount?.toString() || '0',
-            paymentMethod: updatedSale.data.paymentMethod || 'Other',
-            paymentType: updatedSale.data.paymentType || 'One-time',
-            contractTerm: updatedSale.data.contractTerm || '',
-            card: updatedSale.data.card || '',
-            exp: updatedSale.data.exp || '',
-            cvv: updatedSale.data.cvv || '',
+            totalAmount: '',
+            paymentMethod: '',
+            paymentType: '',
+            contractTerm: '',
+            card: '',
+            exp: '',
+            cvv: '',
           });
           setNotes(updatedSale.data.notes || []);
           toast.success('Payment details updated successfully');
@@ -399,6 +406,36 @@ const SaleDetails = () => {
       }
     });
     setShowConfirmModal(true);
+  };
+
+  const handleOpenPaymentModal = () => {
+    const currentDate = new Date();
+    const contractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : null;
+
+    if (sale.paymentType === 'Recurring' && contractEndDate && contractEndDate > currentDate) {
+      // For recurring payments with active contract term, show existing details but clear card info
+      setPaymentForm({
+        totalAmount: sale.totalAmount?.toString() || '',
+        paymentMethod: sale.paymentMethod || '',
+        paymentType: sale.paymentType || '',
+        contractTerm: sale.contractTerm || '',
+        card: '',
+        exp: '',
+        cvv: '',
+      });
+    } else {
+      // For one-time payments or expired recurring payments, show empty form
+      setPaymentForm({
+        totalAmount: '',
+        paymentMethod: '',
+        paymentType: '',
+        contractTerm: '',
+        card: '',
+        exp: '',
+        cvv: '',
+      });
+    }
+    setShowPaymentModal(true);
   };
 
   if (loading) {
@@ -432,7 +469,7 @@ const SaleDetails = () => {
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Sale Details</h2>
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setShowPaymentModal(true)}
+              onClick={handleOpenPaymentModal}
               className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition duration-200"
             >
               Payment
@@ -641,7 +678,7 @@ const SaleDetails = () => {
               ]
                 .filter(Boolean)
                 .map((item, index) => (
-                  <div key={index} className="flex justify-between items-center border-b border-gray-200 py-2">
+                  <div key={index} className="flex justify-between items-center border-b border-gray ms-200 py-2">
                     <span className="text-sm font-medium text-gray-600">{item.label}</span>
                     <div className="flex items-center gap-2 w-1/2">
                       <span
@@ -673,6 +710,7 @@ const SaleDetails = () => {
                     onChange={(e) => setPaymentForm({ ...paymentForm, contractTerm: e.target.value })}
                     className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
                     placeholder="Enter number of months"
+                    readOnly={sale.paymentType === 'Recurring' && sale.contractEndDate && new Date(sale.contractEndDate) > new Date()}
                     required
                   />
                 </div>
@@ -685,6 +723,7 @@ const SaleDetails = () => {
                     onChange={(e) => setPaymentForm({ ...paymentForm, totalAmount: e.target.value })}
                     className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
                     placeholder="Enter total amount"
+                    readOnly={sale.paymentType === 'Recurring' && sale.contractEndDate && new Date(sale.contractEndDate) > new Date()}
                     required
                   />
                 </div>
@@ -694,6 +733,7 @@ const SaleDetails = () => {
                     value={paymentForm.paymentType}
                     onChange={(e) => setPaymentForm({ ...paymentForm, paymentType: e.target.value })}
                     className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
+                    disabled={sale.paymentType === 'Recurring' && sale.contractEndDate && new Date(sale.contractEndDate) > new Date()}
                     required
                   >
                     <option value="" disabled>Select payment type</option>
@@ -758,7 +798,7 @@ const SaleDetails = () => {
                   <input
                     type="text"
                     value={paymentForm.cvv}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value })}
+                    onChang e={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value })}
                     className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
                     placeholder="Enter CVV"
                     required
