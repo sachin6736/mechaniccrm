@@ -14,11 +14,15 @@ const app = express();
 const allowedOrigins = (process.env.FRONTEND_URLS || '').split(',').map(o => o.trim()).filter(Boolean);
 
 app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    return cb(new Error('Not allowed by CORS'));
+  origin: (origin, callback) => {
+    console.log('🛰️ Incoming origin:', origin);
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Not allowed by CORS: ${origin}`));
+    }
   },
-  credentials: true
+  credentials: true,
 }));
 
 app.use(express.json());
