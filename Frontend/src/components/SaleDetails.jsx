@@ -799,7 +799,7 @@ const SaleDetails = () => {
                   <input
                     type="text"
                     value={paymentForm.cvv}
-                    onChang e={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value })}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value })}
                     className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
                     placeholder="Enter CVV"
                     required
