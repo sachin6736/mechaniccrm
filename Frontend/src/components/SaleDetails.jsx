@@ -227,7 +227,7 @@ const SaleDetails = () => {
       const months = parseInt(sale.contractTerm);
       return months > 0 ? (sale.totalAmount / months).toFixed(2) : '0.00';
     }
-    return '0.00'; // Changed from null to prevent UI issues
+    return '0.00';
   };
 
   const handleEditPayment = () => {
@@ -646,7 +646,7 @@ const SaleDetails = () => {
                   key: 'totalAmount',
                   format: (value) => `$${parseFloat(value || 0).toFixed(2)}`,
                 },
-                {
+                sale?.paymentType !== 'One-time' && {
                   label: 'Remaining Amount ($)',
                   key: 'remainingAmount',
                   format: () => `$${calculateRemainingAmount().toFixed(2)}`,
