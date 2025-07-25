@@ -115,7 +115,6 @@ const SaleDetails = () => {
     }
   }, [id, navigate]);
 
-  // Log userRole when it changes
   useEffect(() => {
     if (userRole !== null) {
       console.log('UserRole:', userRole);
@@ -228,7 +227,7 @@ const SaleDetails = () => {
       const months = parseInt(sale.contractTerm);
       return months > 0 ? (sale.totalAmount / months).toFixed(2) : '0.00';
     }
-    return null;
+    return '0.00'; // Changed from null to prevent UI issues
   };
 
   const handleEditPayment = () => {
@@ -270,7 +269,6 @@ const SaleDetails = () => {
       return;
     }
 
-    // Validation for payment updates
     const currentDate = new Date();
     const contractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : null;
     const remainingAmount = calculateRemainingAmount();
@@ -322,7 +320,6 @@ const SaleDetails = () => {
           updatedPartialPayments = sale.partialPayments ? [...sale.partialPayments, partialPayment] : [partialPayment];
         }
 
-        // If contractEndDate exists and is in the past, save current contract to previousContracts and clear partialPayments
         if (contractEndDate && contractEndDate <= currentDate) {
           previousContract = {
             totalAmount: sale.totalAmount,
@@ -337,7 +334,7 @@ const SaleDetails = () => {
             partialPayments: sale.partialPayments || [],
             createdAt: new Date(),
           };
-          updatedPartialPayments = []; // Clear partialPayments for new contract
+          updatedPartialPayments = [];
           newContractEndDate = new Date(paymentDate);
           if (paymentForm.paymentType === 'One-time') {
             newContractEndDate.setMonth(newContractEndDate.getMonth() + parseInt(paymentForm.contractTerm));
@@ -371,7 +368,7 @@ const SaleDetails = () => {
               {
                 text: `Updated payment details: Total Amount $${parseFloat(paymentForm.totalAmount).toFixed(2)}, Payment Method: ${paymentForm.paymentMethod}, Payment Type: ${paymentForm.paymentType}, Contract Term: ${paymentForm.contractTerm} months, Contract End Date: ${newContractEndDate.toLocaleDateString()}`,
                 createdAt: new Date(),
-                createdBy: null, // Update with actual user ID if available
+                createdBy: null,
               },
             ],
           }),
@@ -414,7 +411,6 @@ const SaleDetails = () => {
     const contractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : null;
 
     if (sale.paymentType === 'Recurring' && contractEndDate && contractEndDate > currentDate) {
-      // For recurring payments with active contract term, show existing details but clear card info
       setPaymentForm({
         totalAmount: sale.totalAmount?.toString() || '',
         paymentMethod: sale.paymentMethod || '',
@@ -425,7 +421,6 @@ const SaleDetails = () => {
         cvv: '',
       });
     } else {
-      // For one-time payments or expired recurring payments, show empty form
       setPaymentForm({
         totalAmount: '',
         paymentMethod: '',
@@ -441,7 +436,7 @@ const SaleDetails = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center px-4 sm:px-6 md:pl-24 md:pt-20">
         <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
@@ -449,8 +444,8 @@ const SaleDetails = () => {
 
   if (error || !sale) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
-        <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 shadow-sm">
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center px-4 sm:px-6 md:pl-24 md:pt-20">
+        <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 shadow-sm w-full max-w-md">
           <p className="text-sm font-medium">{error || 'Sale not found. Please check the sale ID or try again later.'}</p>
           <button
             onClick={() => navigate('/sale/sales')}
@@ -464,33 +459,32 @@ const SaleDetails = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20">
+    <div className="min-h-screen bg-gray-50 py-6 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-16">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Sale Details</h2>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={handleOpenPaymentModal}
-              className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition duration-200"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition duration-200"
             >
               Payment
             </button>
             <button
               onClick={() => navigate(`/lead/${sale.leadId._id}`)}
-              className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition duration-200"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition duration-200"
             >
               View Lead
             </button>
           </div>
         </div>
 
-        {/* Status Row */}
-        <div className="flex flex-wrap gap-2 mb-6 bg-white rounded-full shadow-md p-2 overflow-x-auto">
+        <div className="flex flex-wrap gap-2 mb-6 bg-white rounded-lg shadow-md p-2 sm:p-3 overflow-x-auto">
           {statusOptions.map((status, index) => (
             <button
               key={index}
               onClick={() => updateStatus(sale._id, status)}
-              className={`px-4 py-2 text-sm font-medium rounded-full transition-colors duration-200 ${
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-full transition-colors duration-200 ${
                 sale.status === status
                   ? statusTextColors[status]
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -501,10 +495,10 @@ const SaleDetails = () => {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Lead Information</h3>
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Lead Information</h3>
             </div>
             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
               {[
@@ -531,18 +525,18 @@ const SaleDetails = () => {
                   format: (value) => new Date(value).toLocaleString(),
                 },
               ].map((item, index) => (
-                <div key={index} className="flex justify-between items-center border-b border-gray-200 py-2">
-                  <span className="text-sm font-medium text-gray-600">{item.label}</span>
-                  <div className="flex items-center gap-2 w-1/2">
+                <div key={index} className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-200 py-2 gap-2">
+                  <span className="text-xs sm:text-sm font-medium text-gray-600">{item.label}</span>
+                  <div className="flex items-center gap-2 w-full sm:w-1/2">
                     {item.isLink ? (
                       <a
                         href={`mailto:${sale[item.key]}`}
-                        className="text-sm text-teal-500 hover:underline truncate"
+                        className="text-xs sm:text-sm text-teal-500 hover:underline truncate"
                       >
                         {sale[item.key]}
                       </a>
                     ) : (
-                      <span className="text-sm text-gray-900 truncate">
+                      <span className="text-xs sm:text-sm text-gray-900 truncate">
                         {item.format ? item.format(sale[item.key]) : sale[item.key] || 'Not set'}
                       </span>
                     )}
@@ -552,9 +546,9 @@ const SaleDetails = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Notes</h3>
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Notes</h3>
             </div>
             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
               {notes.length > 0 ? (
@@ -572,7 +566,7 @@ const SaleDetails = () => {
                         'bg-gray-50'
                       }`}
                     >
-                      <p className="text-sm text-gray-900">
+                      <p className="text-xs sm:text-sm text-gray-900">
                         {note.text.startsWith('Sale created') ? (
                           <span className="font-medium text-green-600">[Created] </span>
                         ) : note.text.startsWith('Updated payment') ? (
@@ -593,13 +587,13 @@ const SaleDetails = () => {
                     </div>
                   ))
               ) : (
-                <p className="text-sm text-gray-500 text-center">No notes added yet.</p>
+                <p className="text-xs sm:text-sm text-gray-500 text-center">No notes added yet.</p>
               )}
             </div>
             {isEditingNotes ? (
               <div className="mt-4">
                 <textarea
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm text-gray-900 bg-white"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm text-gray-900 bg-white"
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   placeholder="Add a note..."
@@ -608,13 +602,13 @@ const SaleDetails = () => {
                 <div className="flex justify-end gap-2 mt-2">
                   <button
                     onClick={() => setIsEditingNotes(false)}
-                    className="px-3 py-1 text-sm text-red-500 hover:text-red-600"
+                    className="px-3 py-1 text-xs sm:text-sm text-red-500 hover:text-red-600"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveNotes}
-                    className="inline-flex items-center px-3 py-1 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                    className="inline-flex items-center px-3 py-1 bg-teal-600 text-white text-xs sm:text-sm rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
                   >
                     <Save className="h-4 w-4 mr-1" /> Save
                   </button>
@@ -623,23 +617,23 @@ const SaleDetails = () => {
             ) : (
               <button
                 onClick={() => setIsEditingNotes(true)}
-                className="inline-flex items-center mt-4 px-3 py-1 text-sm text-teal-500 hover:text-teal-600"
+                className="inline-flex items-center mt-4 px-3 py-1 text-xs sm:text-sm text-teal-500 hover:text-teal-600"
               >
                 <Edit className="h-4 w-4 mr-1" /> Add Note
               </button>
             )}
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Payment Information</h3>
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Payment Information</h3>
             </div>
             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
               {[
                 {
                   label: 'Card Number',
                   key: 'card',
-                  format: (value) => userRole === 'admin' ? value : `**** **** **** ${value.slice(-4)}`,
+                  format: (value) => userRole === 'admin' ? value : `**** **** **** ${value?.slice(-4) || '****'}`,
                 },
                 { label: 'Expiration Date', key: 'exp' },
                 {
@@ -650,7 +644,7 @@ const SaleDetails = () => {
                 {
                   label: 'Total Amount ($)',
                   key: 'totalAmount',
-                  format: (value) => `$${parseFloat(value).toFixed(2)}`,
+                  format: (value) => `$${parseFloat(value || 0).toFixed(2)}`,
                 },
                 {
                   label: 'Remaining Amount ($)',
@@ -679,11 +673,11 @@ const SaleDetails = () => {
               ]
                 .filter(Boolean)
                 .map((item, index) => (
-                  <div key={index} className="flex justify-between items-center border-b border-gray ms-200 py-2">
-                    <span className="text-sm font-medium text-gray-600">{item.label}</span>
-                    <div className="flex items-center gap-2 w-1/2">
+                  <div key={index} className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-200 py-2 gap-2">
+                    <span className="text-xs sm:text-sm font-medium text-gray-600">{item.label}</span>
+                    <div className="flex items-center gap-2 w-full sm:w-1/2">
                       <span
-                        className={`text-sm truncate ${
+                        className={`text-xs sm:text-sm truncate ${
                           item.key === 'status'
                             ? statusTextColors[sale[item.key]] || 'text-gray-900'
                             : 'text-gray-900'
@@ -699,41 +693,41 @@ const SaleDetails = () => {
         </div>
 
         {showPaymentModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Update Payment</h3>
-              <div className="space-y-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+            <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 w-11/12 max-w-md max-h-[90vh] overflow-y-auto">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">Update Payment</h3>
+              <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Contract Term (Months)</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700">Contract Term (Months)</label>
                   <input
                     type="number"
                     value={paymentForm.contractTerm}
                     onChange={(e) => setPaymentForm({ ...paymentForm, contractTerm: e.target.value })}
-                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
+                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                     placeholder="Enter number of months"
                     readOnly={sale.paymentType === 'Recurring' && sale.contractEndDate && new Date(sale.contractEndDate) > new Date()}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Total Amount ($)</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700">Total Amount ($)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={paymentForm.totalAmount}
                     onChange={(e) => setPaymentForm({ ...paymentForm, totalAmount: e.target.value })}
-                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
+                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                     placeholder="Enter total amount"
                     readOnly={sale.paymentType === 'Recurring' && sale.contractEndDate && new Date(sale.contractEndDate) > new Date()}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Payment Type</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700">Payment Type</label>
                   <select
                     value={paymentForm.paymentType}
                     onChange={(e) => setPaymentForm({ ...paymentForm, paymentType: e.target.value })}
-                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
+                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                     disabled={sale.paymentType === 'Recurring' && sale.contractEndDate && new Date(sale.contractEndDate) > new Date()}
                     required
                   >
@@ -745,7 +739,7 @@ const SaleDetails = () => {
                 </div>
                 {paymentForm.paymentType === 'Recurring' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Partial Payment Amount ($)</label>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700">Partial Payment Amount ($)</label>
                     <input
                       type="text"
                       value={
@@ -753,17 +747,17 @@ const SaleDetails = () => {
                           ? (parseFloat(paymentForm.totalAmount) / parseInt(paymentForm.contractTerm)).toFixed(2)
                           : '0.00'
                       }
-                      className="mt-1 block w-full p-2 border border-gray-300 rounded-lg text-sm bg-gray-100"
+                      className="mt-1 block w-full p-2 border border-gray-300 rounded-lg text-xs sm:text-sm bg-gray-100"
                       disabled
                     />
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700">Payment Method</label>
                   <select
                     value={paymentForm.paymentMethod}
                     onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
-                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
+                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                     required
                   >
                     <option value="" disabled>Select payment method</option>
@@ -773,49 +767,49 @@ const SaleDetails = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Card Number</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700">Card Number</label>
                   <input
                     type="text"
                     value={paymentForm.card}
                     onChange={(e) => setPaymentForm({ ...paymentForm, card: e.target.value })}
-                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
+                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                     placeholder="Enter full card number"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Expiration Date (MM/YY)</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700">Expiration Date (MM/YY)</label>
                   <input
                     type="text"
                     value={paymentForm.exp}
                     onChange={(e) => setPaymentForm({ ...paymentForm, exp: e.target.value })}
-                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
+                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                     placeholder="MM/YY"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">CVV</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700">CVV</label>
                   <input
                     type="text"
                     value={paymentForm.cvv}
                     onChange={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value })}
-                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-sm"
+                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                     placeholder="Enter CVV"
                     required
                   />
                 </div>
               </div>
-              <div className="mt-6 flex justify-end gap-2">
+              <div className="mt-4 sm:mt-6 flex justify-end gap-2">
                 <button
                   onClick={() => setShowPaymentModal(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                  className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-gray-600 hover:text-gray-800"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleEditPayment}
-                  className="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                  className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 bg-teal-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
                 >
                   <Save className="h-4 w-4 mr-1" /> Save
                 </button>
