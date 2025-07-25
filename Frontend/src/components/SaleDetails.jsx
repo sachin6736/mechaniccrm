@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Edit, Save } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
+const API = import.meta.env.VITE_API_URL;
 
 const statusOptions = ['Pending', 'Completed', 'Failed', 'Refunded', 'Part-Payment'];
 const paymentMethodOptions = ['Credit Card', 'Bank Transfer', 'PayPal', 'Other'];
@@ -46,7 +47,7 @@ const SaleDetails = () => {
   useEffect(() => {
     const fetchUserRole = async () => {
       try {
-        const response = await fetch('http://localhost:3000/Auth/check-auth', {
+        const response = await fetch(`${API}/Auth/check-auth`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -72,7 +73,7 @@ const SaleDetails = () => {
       try {
         setLoading(true);
         console.log('Fetching sale with ID:', id);
-        const response = await fetch(`http://localhost:3000/sale/getsalebyid/${id}`, {
+        const response = await fetch(`${API}/sale/getsalebyid/${id}`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -128,7 +129,7 @@ const SaleDetails = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3000/sale/updatenotes/${id}`, {
+      const response = await fetch(`${API}/sale/updatenotes/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -166,7 +167,7 @@ const SaleDetails = () => {
     setConfirmText('Change Status');
     setConfirmAction(() => async () => {
       try {
-        const response = await fetch(`http://localhost:3000/sale/updatesale/${id}`, {
+        const response = await fetch(`${API}/sale/updatesale/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -345,7 +346,7 @@ const SaleDetails = () => {
           }
         }
 
-        const response = await fetch(`http://localhost:3000/sale/updatesale/${id}`, {
+        const response = await fetch(`${API}/sale/updatesale/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

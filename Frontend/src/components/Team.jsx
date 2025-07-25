@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Save } from 'lucide-react';
 import ConfirmationModal from './ConfirmationModal';
+const API = import.meta.env.VITE_API_URL;
 
 const Team = () => {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ const Team = () => {
     const fetchUsers = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:3000/Auth/users', {
+        const response = await fetch(`${API}/Auth/users`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -71,7 +72,7 @@ const Team = () => {
 
     setConfirmAction(() => async () => {
       try {
-        const response = await fetch('http://localhost:3000/Auth/create-user', {
+        const response = await fetch(`${API}/Auth/create-user`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

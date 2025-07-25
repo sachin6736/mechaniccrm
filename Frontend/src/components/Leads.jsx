@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Users, ChevronUp, ChevronDown, PlusCircle, Search } from 'lucide-react';
+const API = import.meta.env.VITE_API_URL;
 
 // Custom debounce function
 const debounce = (func, wait) => {
@@ -38,7 +39,7 @@ const Leads = () => {
       }).toString();
 
       console.log('Fetching leads with query:', query);
-      const response = await fetch(`http://localhost:3000/Lead/leads?${query}`, {
+      const response = await fetch(`${API}/Lead/leads?${query}`, {
         method: 'GET',
         credentials: 'include',
       });

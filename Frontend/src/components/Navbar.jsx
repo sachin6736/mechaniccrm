@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Menu, X, LogOut, Users, PlusCircle, DollarSign } from 'lucide-react';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+const API = import.meta.env.VITE_API_URL;
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -13,7 +14,7 @@ const Navbar = () => {
   useEffect(() => {
     const fetchUserRole = async () => {
       try {
-        const response = await fetch('http://localhost:3000/Auth/check-auth', {
+        const response = await fetch(`${API}/Auth/check-auth`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -30,7 +31,7 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     try {
-      const res = await fetch('http://localhost:3000/Auth/logout', {
+      const res = await fetch(`${API}/Auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });

@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import logo from '../assets/logo.avif';
 import login from '../assets/login.avif';
+const API = import.meta.env.VITE_API_URL;
 
 // Fallback Spinner component
 const Spinner = ({ size = 'w-4 h-4', color = 'text-white' }) => (
@@ -47,7 +48,7 @@ const Login = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3000/Auth/login', {
+      const response = await fetch(`${API}/Auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
