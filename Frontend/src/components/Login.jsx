@@ -162,7 +162,7 @@ const Login = () => {
             </div>
             <button
               type="submit"
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg transition duration-200 flex justify-center items-center disabled:opacity-50"
+              className="w-full bg-[#4f4f51] hover:bg-black text-white py-2 rounded-lg transition duration-200 flex justify-center items-center disabled:opacity-50"
               disabled={loading}
               aria-label="Login"
             >
@@ -194,7 +194,7 @@ const Login = () => {
         <p className="text-sm text-gray-600">Forgot password?</p>
         <button
           type="button"
-          className="text-sm text-blue-600 hover:text-blue-700 px-3 py-1 rounded"
+          className="text-sm text-black hover:text-[#4f4f51] px-3 py-1 rounded"
           onClick={handleContactAdmin}
           aria-label="Contact Admin for password reset"
         >
