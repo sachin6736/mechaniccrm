@@ -337,42 +337,53 @@ export const updateDates = async (req, res) => {
 };
 
 export const editStatus = async (req, res) => {
-    try {
-      const { id } = req.params;
-      console.log('leadId from params:', id);
-  
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ success: false, message: 'Invalid lead ID format' });
-      }
-  
-      const { disposition } = req.body;
-  
-      const validDispositions = ['Not Interested', 'Follow up', 'Sale'];
-      if (!validDispositions.includes(disposition)) {
-        return res.status(400).json({ success: false, message: 'Invalid status' });
-      }
-  
-      const lead = await Lead.findById(id);
-      if (!lead) {
-        return res.status(404).json({ success: false, message: 'Lead not found' });
-      }
-  
-      if (lead.disposition === disposition) {
-        return res.status(400).json({ success: false, message: `Status is already set to ${disposition}` });
-      }
-  
-      const noteText = `Changed status from "${lead.disposition || 'None'}" to "${disposition}"`;
-      const leadNote = {
-        text: noteText,
-        createdAt: new Date(),
-        createdBy: req.user ? req.user.id : null,
-      };
-  
-      lead.disposition = disposition;
-      lead.notes.push(leadNote);
-      await lead.save();
-  
-      if (disposition === 'Sale') {
+  try {
+    const { id } = req.params;
+    console.log('leadId from params:', id);
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid lead ID format' });
+    }
+
+    const { disposition } = req.body;
+
+    const validDispositions = ['Not Interested', 'Follow up', 'Sale'];
+    if (!validDispositions.includes(disposition)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    const lead = await Lead.findById(id);
+    if (!lead) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    if (lead.disposition === disposition) {
+      return res.status(400).json({ success: false, message: `Status is already set to ${disposition}` });
+    }
+
+    const noteText = `Changed status from "${lead.disposition || 'None'}" to "${disposition}"`;
+    const leadNote = {
+      text: noteText,
+      createdAt: new Date(),
+      createdBy: req.user ? req.user.id : null,
+    };
+
+    lead.disposition = disposition;
+    lead.notes.push(leadNote);
+
+    if (disposition === 'Sale') {
+      // Check if a sale already exists for this lead
+      const existingSale = await Sale.findOne({ leadId: lead._id });
+      if (existingSale) {
+        // Sale exists, add a note indicating status update only
+        lead.notes.push({
+          text: `Lead status changed to "Sale". Existing sale found (Sale ID: ${existingSale._id}).`,
+          createdAt: new Date(),
+          createdBy: req.user ? req.user.id : null,
+        });
+        console.log('Existing sale found for leadId:', lead._id, 'Sale ID:', existingSale._id);
+      } else {
+        // No sale exists, create a new draft sale
         const sale = new Sale({
           leadId: lead._id,
           name: lead.name,
@@ -384,10 +395,10 @@ export const editStatus = async (req, res) => {
           card: '****', // Placeholder
           exp: 'MM/YY', // Placeholder
           cvv: '***', // Placeholder
-          totalAmount: 0,
+          totalAmount: 0, // Fixed: Removed stray single quote
           paymentType: null, // Placeholder, to be set on sales page
           contractTerm: null, // Placeholder, to be set on sales page
-          paymentMethod: null, // Placeholder, to be set on sales page
+          paymentMethod: null, // Placeholder
           status: 'Pending',
           paymentDate: null, // Explicitly null for draft sales
           notes: [{
@@ -397,13 +408,21 @@ export const editStatus = async (req, res) => {
           }],
         });
         await sale.save();
-        console.log('Draft sale created for leadId:', lead._id);
+        lead.notes.push({
+          text: `Draft sale created (Sale ID: ${sale._id}).`,
+          createdAt: new Date(),
+          createdBy: req.user ? req.user.id : null,
+        });
+        console.log('Draft sale created for leadId:', lead._id, 'Sale ID:', sale._id);
       }
-  
-      const updatedLead = await Lead.findById(id).populate('notes.createdBy', 'name');
-      res.status(200).json({ success: true, data: updatedLead });
-    } catch (error) {
-      console.error('Error updating lead status:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
     }
+
+    await lead.save();
+
+    const updatedLead = await Lead.findById(id).populate('notes.createdBy', 'name');
+    res.status(200).json({ success: true, data: updatedLead });
+  } catch (error) {
+    console.error('Error updating lead status:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 };
