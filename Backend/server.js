@@ -4,39 +4,40 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 
-//routes
-import userRoutes from './routes/userRoutes.js'
+import userRoutes from './routes/userRoutes.js';
 import leadRoutes from './routes/leadRoutes.js';
 import saleRoutes from './routes/saleRoutes.js';
-const app = express();
-dotenv.config();
-const FRONTEND_URL = 'http://localhost:5173';
-app.use(cors({
-    origin: FRONTEND_URL,
-    credentials: true,
-  }));
 
-// Middleware to parse JSON and cookies
+dotenv.config();
+const app = express();
+
+const allowedOrigins = (process.env.FRONTEND_URLS || '').split(',').map(o => o.trim()).filter(Boolean);
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
+
 app.use(express.json());
 app.use(cookieParser());
 
-//routes
+// routes
 app.use('/Auth', userRoutes);
-app.use('/Lead',leadRoutes);
+app.use('/Lead', leadRoutes);
 app.use('/Sale', saleRoutes);
 
 const port = process.env.PORT || 3000;
 
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.log('Error occurred', err));
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('Mongo error', err));
 
-// Start the server
+// (optional) simple health check
+app.get('/health', (_, res) => res.send('ok'));
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
-  
