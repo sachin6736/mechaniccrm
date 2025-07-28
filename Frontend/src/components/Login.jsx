@@ -16,7 +16,7 @@ const Spinner = ({ size = 'w-4 h-4', color = 'text-white' }) => (
 const Login = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: '',
+    name: '',
     password: '',
   });
   const [error, setError] = useState('');
@@ -31,18 +31,18 @@ const Login = () => {
     setError('');
     setLoading(true);
 
-    if (!formData.email || !formData.password) {
-      setError('Email and password are required');
-      toast.error('Email and password are required');
+    if (!formData.name || !formData.password) {
+      setError('Name and password are required');
+      toast.error('Name and password are required');
       setLoading(false);
       return;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      setError('Please enter a valid email address');
-      toast.warning('Please enter a valid email address');
+    // Basic name validation
+    const nameRegex = /^[a-zA-Z0-9_]{3,30}$/;
+    if (!nameRegex.test(formData.name)) {
+      setError('Please enter a valid name (3-30 characters, letters, numbers, or underscores)');
+      toast.warning('Please enter a valid name');
       setLoading(false);
       return;
     }
@@ -114,17 +114,17 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block mb-1 text-sm font-medium text-gray-700">
-                E-mail
+                Userngitame
               </label>
               <input
-                type="email"
-                name="email"
-                value={formData.email}
+                type="text"
+                name="name"
+                value={formData.name}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="example@email.com"
+                placeholder="username"
                 required
-                aria-label="Email address"
+                aria-label="Name"
               />
             </div>
             <div>
