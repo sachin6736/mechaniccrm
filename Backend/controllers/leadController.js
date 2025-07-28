@@ -1,85 +1,98 @@
 import mongoose from 'mongoose';
-import Lead from "../Models/Lead.js";
+import Lead, { Counter } from "../Models/Lead.js";
 import Sale from '../Models/Sale.js';
+import SaleCounter from '../Models/saleCounterModel.js'
 
 export const createLead = async (req, res) => {
-    try {
-      const { name, email, phoneNumber, businessName, businessAddress, notes, disposition } = req.body;
-      const userId = req.user?.id;
-  
-      // Validate required fields
-      if (!name || !email || !phoneNumber || !businessName || !businessAddress) {
-        return res.status(400).json({ success: false, message: 'All required fields are required' });
-      }
-  
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return res.status(400).json({ success: false, message: 'Invalid email format' });
-      }
-  
-      // Validate disposition
-      if (disposition && !['Not Interested', 'Follow up', 'Sale'].includes(disposition)) {
-        return res.status(400).json({ success: false, message: 'Invalid disposition value' });
-      }
-  
-      // Validate userId
-      if (userId && !mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).json({ success: false, message: 'Invalid user ID' });
-      }
-  
-      // Check for existing email
-      const existingLead = await Lead.findOne({ email });
-      if (existingLead) {
-        return res.status(400).json({ success: false, message: 'Email already exists' });
-      }
-  
-      // Prepare notes array
-      const notesArray = [];
-      // Add creation note
+  try {
+    const { name, email, phoneNumber, businessName, businessAddress, notes, disposition } = req.body;
+    const userId = req.user?.id;
+
+    // Validate required fields
+    if (!name || !email || !phoneNumber || !businessName || !businessAddress) {
+      return res.status(400).json({ success: false, message: 'All required fields are required' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
+    }
+
+    // Validate disposition
+    if (disposition && !['Not Interested', 'Follow up', 'Sale'].includes(disposition)) {
+      return res.status(400).json({ success: false, message: 'Invalid disposition value' });
+    }
+
+    // Validate userId
+    if (userId && !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
+    // Check for existing email
+    const existingLead = await Lead.findOne({ email });
+    if (existingLead) {
+      return res.status(400).json({ success: false, message: 'Email already exists' });
+    }
+
+    // Get and increment leadId
+    const counter = await Counter.findOneAndUpdate(
+      { _id: 'leadId' },
+      { $inc: { sequence: 1 } },
+      { new: true, upsert: true, returnDocument: 'after' }
+    );
+    const leadId = counter.sequence;
+
+    // Prepare notes array
+    const notesArray = [];
+    // Add creation note
+    notesArray.push({
+      text: 'Lead created',
+      createdAt: new Date(),
+      createdBy: userId || null,
+    });
+    // Add optional user note
+    if (notes && typeof notes === 'string' && notes.trim()) {
       notesArray.push({
-        text: 'Lead created',
+        text: notes.trim(),
         createdAt: new Date(),
         createdBy: userId || null,
       });
-      // Add optional user note
-      if (notes && typeof notes === 'string' && notes.trim()) {
-        notesArray.push({
-          text: notes.trim(),
-          createdAt: new Date(),
-          createdBy: userId || null,
-        });
-      }
-  
-      // Create new lead
-      const lead = new Lead({
-        name,
-        email,
-        phoneNumber,
-        businessName,
-        businessAddress,
-        notes: notesArray,
-        disposition: disposition || 'Follow up',
-        importantDates: [],
-      });
-  
-      await lead.save();
-  
-      // Populate notes.createdBy for response
-      const populatedLead = await Lead.findById(lead._id).populate('notes.createdBy', 'name email');
-  
-      res.status(201).json({
-        success: true,
-        message: 'Lead created successfully',
-        data: populatedLead,
-      });
-    } catch (error) {
-      console.error('Create lead error:', error);
-      if (error.code === 11000 && error.keyPattern?.email) {
-        return res.status(400).json({ success: false, message: 'Email already exists' });
-      }
-      res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
+
+    // Create new lead with leadId
+    const lead = new Lead({
+      leadId,
+      name,
+      email,
+      phoneNumber,
+      businessName,
+      businessAddress,
+      notes: notesArray,
+      disposition: disposition || 'Follow up',
+      importantDates: [],
+    });
+
+    await lead.save();
+
+    // Populate notes.createdBy for response
+    const populatedLead = await Lead.findById(lead._id).populate('notes.createdBy', 'name email');
+
+    res.status(201).json({
+      success: true,
+      message: 'Lead created successfully',
+      data: populatedLead,
+    });
+  } catch (error) {
+    console.error('Create lead error:', error);
+    if (error.code === 11000 && error.keyPattern?.email) {
+      return res.status(400).json({ success: false, message: 'Email already exists' });
+    }
+    if (error.code === 11000 && error.keyPattern?.leadId) {
+      return res.status(400).json({ success: false, message: 'Lead ID conflict, please try again' });
+    }
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
 };
 
 export const getLeads = async (req, res) => {
@@ -372,48 +385,54 @@ export const editStatus = async (req, res) => {
     lead.notes.push(leadNote);
 
     if (disposition === 'Sale') {
-      // Check if a sale already exists for this lead
       const existingSale = await Sale.findOne({ leadId: lead._id });
       if (existingSale) {
-        // Sale exists, add a note indicating status update only
         lead.notes.push({
-          text: `Lead status changed to "Sale". Existing sale found (Sale ID: ${existingSale._id}).`,
+          text: `Lead status changed to "Sale". Existing sale found (Sale ID: ${existingSale._id}, saleId: ${existingSale.saleId}).`,
           createdAt: new Date(),
           createdBy: req.user ? req.user.id : null,
         });
-        console.log('Existing sale found for leadId:', lead._id, 'Sale ID:', existingSale._id);
+        console.log('Existing sale found for leadId:', lead._id, 'Sale ID:', existingSale._id, 'saleId:', existingSale.saleId);
       } else {
-        // No sale exists, create a new draft sale
+        // Get and increment saleId
+        const counter = await SaleCounter.findOneAndUpdate(
+          { _id: 'saleId' },
+          { $inc: { sequence: 1 } },
+          { new: true, upsert: true }
+        );
+        const saleId = counter.sequence;
+
         const sale = new Sale({
+          saleId,
           leadId: lead._id,
           name: lead.name,
           email: lead.email,
           phoneNumber: lead.phoneNumber,
           businessName: lead.businessName,
           businessAddress: lead.businessAddress,
-          billingAddress: lead.businessAddress, // Default to business address
-          card: '****', // Placeholder
-          exp: 'MM/YY', // Placeholder
-          cvv: '***', // Placeholder
-          totalAmount: 0, // Fixed: Removed stray single quote
-          paymentType: null, // Placeholder, to be set on sales page
-          contractTerm: null, // Placeholder, to be set on sales page
-          paymentMethod: null, // Placeholder
+          billingAddress: lead.businessAddress,
+          card: '****',
+          exp: 'MM/YY',
+          cvv: '***',
+          totalAmount: 0,
+          paymentType: null,
+          contractTerm: null,
+          paymentMethod: null,
           status: 'Pending',
-          paymentDate: null, // Explicitly null for draft sales
+          paymentDate: null,
           notes: [{
-            text: `Draft sale created by changing lead status to "Sale". Payment details pending.`,
+            text: `Draft sale created with saleId ${saleId} by changing lead status to "Sale". Payment details pending.`,
             createdAt: new Date(),
             createdBy: req.user ? req.user.id : null,
           }],
         });
         await sale.save();
         lead.notes.push({
-          text: `Draft sale created (Sale ID: ${sale._id}).`,
+          text: `Draft sale created (Sale ID: ${sale._id}, saleId: ${sale.saleId}).`,
           createdAt: new Date(),
           createdBy: req.user ? req.user.id : null,
         });
-        console.log('Draft sale created for leadId:', lead._id, 'Sale ID:', sale._id);
+        console.log('Draft sale created for leadId:', lead._id, 'Sale ID:', sale._id, 'saleId:', sale.saleId);
       }
     }
 

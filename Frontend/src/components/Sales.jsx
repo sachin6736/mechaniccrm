@@ -71,7 +71,7 @@ const Sales = () => {
     debounce((pageNum, search, status, sort, order) => {
       fetchSales(pageNum, search, status, sort, order);
     }, 300),
-    [] // Empty dependency array since fetchSales doesn't depend on external state
+    []
   );
 
   useEffect(() => {
@@ -218,6 +218,7 @@ const Sales = () => {
                   <thead className="bg-indigo-600 text-white">
                     <tr>
                       {[
+                        { label: 'Sale ID', field: 'saleId' },
                         { label: 'Lead Name', field: 'leadId.name' },
                         { label: 'Business Name', field: 'leadId.businessName' },
                         { label: 'Total Amount', field: 'totalAmount' },
@@ -257,6 +258,9 @@ const Sales = () => {
                         } hover:bg-indigo-100 transition duration-200 cursor-pointer`}
                         onClick={() => navigate(`/sale/${sale._id}`)}
                       >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {sale.saleId}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
                             {sale.leadId?.name || 'Unknown'}
