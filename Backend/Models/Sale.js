@@ -1,6 +1,16 @@
 import mongoose from 'mongoose';
 
+// Counter schema for auto-incrementing sale_id (can be shared with Lead.js if in same file)
+const counterSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
+  sequence_value: { type: Number, default: 0 },
+});
+
+const Counter = mongoose.model('Counter', counterSchema);
+
+// Sale schema with sale_id field
 const saleSchema = new mongoose.Schema({
+  sale_id: { type: Number, unique: true },
   leadId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Lead',
@@ -114,5 +124,24 @@ const saleSchema = new mongoose.Schema({
   },
 });
 
+// Pre-save middleware to auto-increment sale_id
+saleSchema.pre('save', async function (next) {
+  if (this.isNew) {
+    try {
+      const counter = await Counter.findOneAndUpdate(
+        { _id: 'sale_id' },
+        { $inc: { sequence_value: 1 } },
+        { new: true, upsert: true }
+      );
+      this.sale_id = counter.sequence_value;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  } else {
+    next();
+  }
+});
+
 const Sale = mongoose.model('Sale', saleSchema);
-export default Sale;
+export { Sale, Counter }; // Export both Sale and Counter models
