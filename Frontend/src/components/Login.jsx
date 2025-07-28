@@ -114,7 +114,7 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block mb-1 text-sm font-medium text-gray-700">
-                Userngitame
+                Username
               </label>
               <input
                 type="text"
