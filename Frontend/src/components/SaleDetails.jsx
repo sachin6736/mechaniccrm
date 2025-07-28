@@ -281,6 +281,7 @@ const SaleDetails = () => {
     if (paymentForm.paymentType === 'Recurring') {
       const partialPaymentAmount = parseFloat(paymentForm.totalAmount) / parseInt(paymentForm.contractTerm);
       if (remainingAmount > 0 && partialPaymentAmount > remainingAmount) {
+ Goodwin
         toast.warning(`Partial payment amount (${partialPaymentAmount.toFixed(2)}) exceeds remaining amount (${remainingAmount.toFixed(2)})`);
         return;
       }
@@ -688,6 +689,83 @@ const SaleDetails = () => {
                     </div>
                   </div>
                 ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Previous Contracts</h3>
+            </div>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+              {sale.previousContracts && sale.previousContracts.length > 0 ? (
+                [...sale.previousContracts]
+                  .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                  .map((contract, index) => (
+                    <div key={index} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">Contract #{index + 1} (Created: {new Date(contract.createdAt).toLocaleDateString()})</h4>
+                      <div className="space-y-2">
+                        {[
+                          {
+                            label: 'Total Amount ($)',
+                            key: 'totalAmount',
+                            format: (value) => `$${parseFloat(value || 0).toFixed(2)}`,
+                          },
+                          { label: 'Payment Type', key: 'paymentType' },
+                          { label: 'Contract Term', key: 'contractTerm' },
+                          { label: 'Payment Method', key: 'paymentMethod' },
+                          {
+                            label: 'Card Number',
+                            key: 'card',
+                            format: (value) => userRole === 'admin' ? value : `**** **** **** ${value?.slice(-4) || '****'}`,
+                          },
+                          { label: 'Expiration Date', key: 'exp' },
+                          {
+                            label: 'CVV',
+                            key: 'cvv',
+                            format: (value) => userRole === 'admin' ? value : '***',
+                          },
+                          {
+                            label: 'Payment Date',
+                            key: 'paymentDate',
+                            format: (value) => (value ? new Date(value).toLocaleString() : 'Not Set'),
+                          },
+                          {
+                            label: 'Contract End Date',
+                            key: 'contractEndDate',
+                            format: (value) => (value ? new Date(value).toLocaleDateString() : 'Not Set'),
+                          },
+                        ].map((item, i) => (
+                          <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                            <span className="text-xs sm:text-sm font-medium text-gray-600">{item.label}</span>
+                            <span className="text-xs sm:text-sm text-gray-900 truncate">
+                              {item.format ? item.format(contract[item.key]) : contract[item.key] || 'Not set'}
+                            </span>
+                          </div>
+                        ))}
+                        {contract.partialPayments && contract.partialPayments.length > 0 && (
+                          <div className="mt-2">
+                            <h5 className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Partial Payments</h5>
+                            {[...contract.partialPayments]
+                              .sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate))
+                              .map((payment, i) => (
+                                <div key={i} className="text-xs sm:text-sm text-gray-900 pl-2">
+                                  <span className="font-medium text-teal-600">
+                                    ${parseFloat(payment.amount).toFixed(2)}
+                                  </span>{' '}
+                                  on {new Date(payment.paymentDate).toLocaleDateString()} by{' '}
+                                  <span className="font-medium text-teal-600">
+                                    {payment.createdBy?.name || 'Unknown'}
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <p className="text-xs sm:text-sm text-gray-500 text-center">No previous contracts found.</p>
+              )}
             </div>
           </div>
         </div>
