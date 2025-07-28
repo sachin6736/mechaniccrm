@@ -21,6 +21,11 @@ export const createUser = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid role. Must be admin or sales' });
     }
 
+    const nameRegex = /^[a-zA-Z0-9_]{3,30}$/;
+    if (!nameRegex.test(name)) {
+      return res.status(400).json({ success: false, message: 'Invalid name format. Use 3-30 characters (letters, numbers, or underscores)' });
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ success: false, message: 'Invalid email format' });
@@ -30,9 +35,9 @@ export const createUser = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ name });
     if (existingUser) {
-      return res.status(400).json({ success: false, message: 'Email already exists' });
+      return res.status(400).json({ success: false, message: 'Name already exists' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -77,17 +82,17 @@ export const getUsers = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required' });
+    const { name, password } = req.body;
+    if (!name || !password) {
+      return res.status(400).json({ success: false, message: 'Name and password are required' });
     }
-    const user = await User.findOne({ email }).select('+password'); // Explicitly select password if hidden in schema
+    const user = await User.findOne({ name }).select('+password'); // Explicitly select password if hidden in schema
     if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, message: 'Invalid name or password' });
     }
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, message: 'Invalid name or password' });
     }
     const token = jwt.sign(
       { id: user._id, name: user.name, email: user.email, role: user.role },
@@ -111,7 +116,6 @@ export const login = async (req, res) => {
   }
 };
 
-
 export const logout = async (req, res) => {
   try {
     res.clearCookie('authToken', {
@@ -125,4 +129,3 @@ export const logout = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
-
