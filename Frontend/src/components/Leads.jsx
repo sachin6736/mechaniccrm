@@ -75,6 +75,7 @@ const Leads = () => {
 
       // Prepare data for Excel
       const worksheetData = data.map(lead => ({
+        LeadID: lead.leadId,
         Name: lead.name,
         Email: lead.email,
         'Phone Number': lead.phoneNumber,
@@ -93,6 +94,7 @@ const Leads = () => {
 
       // Set column widths
       worksheet['!cols'] = [
+        { wch: 10 }, // LeadID
         { wch: 20 }, // Name
         { wch: 30 }, // Email
         { wch: 15 }, // Phone Number
@@ -105,7 +107,7 @@ const Leads = () => {
       ];
 
       // Download the Excel file
-      XLSX.write(workbook, 'Leads.xlsx');
+      XLSX.writeFile(workbook, 'Leads.xlsx'); // Changed from XLSX.write to XLSX.writeFile
       toast.success('Leads downloaded successfully');
     } catch (err) {
       console.error('Download error:', err);
@@ -262,6 +264,7 @@ const Leads = () => {
                   <thead className="bg-indigo-600 text-white">
                     <tr>
                       {[
+                        { label: 'Lead ID', field: 'leadId' },
                         { label: 'Name', field: 'name' },
                         { label: 'Email', field: 'email' },
                         { label: 'Phone', field: 'phoneNumber' },
@@ -298,6 +301,7 @@ const Leads = () => {
                         } hover:bg-indigo-100 transition duration-200 cursor-pointer`}
                         onClick={() => handleLeadClick(lead._id)}
                       >
+                        <td className="px-6 py-4 text-sm text-gray-900 font-medium">{lead.leadId}</td>
                         <td className="px-6 py-4 text-sm text-gray-900 font-medium">{lead.name}</td>
                         <td className="px-6 py-4 text-sm text-gray-900">{lead.email}</td>
                         <td className="px-6 py-4 text-sm text-gray-900">{lead.phoneNumber}</td>

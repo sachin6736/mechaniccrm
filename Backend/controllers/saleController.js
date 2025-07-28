@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import Sale from '../Models/Sale.js';
-import Lead from '../Models/Lead.js';
+import Lead, { Counter }from '../Models/Lead.js';
 
 export const getAllSales = async (req, res) => {
   try {
