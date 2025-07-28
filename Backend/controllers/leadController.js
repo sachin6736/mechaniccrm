@@ -426,3 +426,19 @@ export const editStatus = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
+export const getLeadsForDownload = async (req, res) => {
+  try {
+    const leads = await Lead.find({})
+      .populate('notes.createdBy', 'name email')
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: leads,
+    });
+  } catch (error) {
+    console.error('Error fetching leads for download:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};

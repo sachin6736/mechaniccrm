@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { Users, ChevronUp, ChevronDown, PlusCircle, Search } from 'lucide-react';
+import { Users, ChevronUp, ChevronDown, PlusCircle, Search, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 const API = import.meta.env.VITE_API_URL;
 
 // Custom debounce function
@@ -60,12 +61,64 @@ const Leads = () => {
     }
   };
 
+  const handleDownloadExcel = async () => {
+    try {
+      const response = await fetch(`${API}/Lead/leads-download`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      const { success, data } = await response.json();
+
+      if (!success) {
+        throw new Error(data.message || 'Failed to fetch leads for download');
+      }
+
+      // Prepare data for Excel
+      const worksheetData = data.map(lead => ({
+        Name: lead.name,
+        Email: lead.email,
+        'Phone Number': lead.phoneNumber,
+        'Business Name': lead.businessName,
+        'Business Address': lead.businessAddress,
+        Disposition: lead.disposition || 'None',
+        'Created At': lead.createdAt ? new Date(lead.createdAt).toLocaleString() : 'N/A',
+        'Important Dates': lead.importantDates?.join(', ') || 'None',
+        Notes: lead.notes?.map(note => note.text).join('; ') || 'None',
+      }));
+
+      // Create worksheet and workbook
+      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads');
+
+      // Set column widths
+      worksheet['!cols'] = [
+        { wch: 20 }, // Name
+        { wch: 30 }, // Email
+        { wch: 15 }, // Phone Number
+        { wch: 25 }, // Business Name
+        { wch: 30 }, // Business Address
+        { wch: 15 }, // Disposition
+        { wch: 20 }, // Created At
+        { wch: 30 }, // Important Dates
+        { wch: 50 }, // Notes
+      ];
+
+      // Download the Excel file
+      XLSX.write(workbook, 'Leads.xlsx');
+      toast.success('Leads downloaded successfully');
+    } catch (err) {
+      console.error('Download error:', err);
+      toast.error('Failed to download leads');
+    }
+  };
+
   // Debounced version of fetchLeads for search
   const debouncedFetchLeads = useCallback(
     debounce((pageNum, disposition, search, sort, order) => {
       fetchLeads(pageNum, disposition, search, sort, order);
     }, 300),
-    [] // Empty dependency array since fetchLeads doesn't depend on external state
+    []
   );
 
   useEffect(() => {
@@ -136,13 +189,22 @@ const Leads = () => {
             <Users className="h-8 w-8 text-indigo-600" />
             <h2 className="text-3xl font-bold text-gray-900">Leads Management</h2>
           </div>
-          <button
-            onClick={() => navigate('/AddLead')}
-            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:-translate-y-0.5"
-          >
-            <PlusCircle className="h-5 w-5 mr-2" />
-            New Lead
-          </button>
+          <div className="flex space-x-4">
+            <button
+              onClick={() => navigate('/AddLead')}
+              className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:-translate-y-0.5"
+            >
+              <PlusCircle className="h-5 w-5 mr-2" />
+              New Lead
+            </button>
+            <button
+              onClick={handleDownloadExcel}
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:-translate-y-0.5"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Download as Excel
+            </button>
+          </div>
         </div>
 
         {error && (
