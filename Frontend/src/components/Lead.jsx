@@ -6,6 +6,7 @@ import { Edit, Save } from 'lucide-react';
 import Calendar from 'react-calendar';
 import ConfirmationModal from '../components/ConfirmationModal';
 import 'react-calendar/dist/Calendar.css';
+const API = import.meta.env.VITE_API_URL;
 
 const statusOptions = [
   'Not Interested',
@@ -53,7 +54,7 @@ const Lead = () => {
       try {
         setLoading(true);
         console.log('Fetching lead with ID:', id);
-        const response = await fetch(`http://localhost:3000/Lead/getleadbyid/${id}`, {
+        const response = await fetch(`${API}/Lead/getleadbyid/${id}`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -101,7 +102,7 @@ const Lead = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3000/Lead/updateNotes/${id}`, {
+      const response = await fetch(`${API}/Lead/updateNotes/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -155,7 +156,7 @@ const Lead = () => {
       : autoNote;
 
     try {
-      const response = await fetch(`http://localhost:3000/Lead/updateDates/${id}`, {
+      const response = await fetch(`${API}/Lead/updateDates/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -216,7 +217,7 @@ const Lead = () => {
     setConfirmText('Save Changes');
     setConfirmAction(() => async () => {
       try {
-        const response = await fetch(`http://localhost:3000/Lead/editlead/${id}`, {
+        const response = await fetch(`${API}/Lead/editlead/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -264,7 +265,7 @@ const Lead = () => {
     setConfirmText('Change Status');
     setConfirmAction(() => async () => {
       try {
-        const response = await fetch(`http://localhost:3000/Lead/editstatus/${leadId}`, {
+        const response = await fetch(`${API}/Lead/editstatus/${leadId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

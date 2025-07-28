@@ -71,6 +71,7 @@ export const getAllSales = async (req, res) => {
 };
 
   export const getCompletedSales = async (req, res) => {
+    console.log("completedsales working")
     try {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 10;
@@ -107,6 +108,79 @@ export const getAllSales = async (req, res) => {
       });
     } catch (error) {
       console.error('Error fetching completed sales:', error);
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+  };
+
+  export const getDueSales = async (req, res) => {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+      const sortField = req.query.sortField || 'contractEndDate';
+      const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+      const search = req.query.search || '';
+  
+      console.log('Fetching due sales with params:', { page, limit, skip, sortField, sortOrder, search });
+  
+      // Calculate date range: past due or within 2 days from now
+      const now = new Date();
+      const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+  
+      // Build query
+      const query = {
+        contractEndDate: {
+          $lte: twoDaysFromNow, // Contracts ending on or before 2 days from now
+          $ne: null, // Ensure contractEndDate exists
+        },
+      };
+  
+      if (search) {
+        const searchRegex = new RegExp(search, 'i'); // Case-insensitive regex
+        query.$or = [
+          { name: searchRegex },
+          { email: searchRegex },
+          { phoneNumber: searchRegex },
+          { businessName: searchRegex },
+        ];
+      }
+  
+      // Map frontend sort fields to MongoDB sort fields
+      const sortMapping = {
+        'leadId.name': 'name',
+        'leadId.businessName': 'businessName',
+        totalAmount: 'totalAmount',
+        paymentType: 'paymentType',
+        contractTerm: 'contractTerm',
+        paymentMethod: 'paymentMethod',
+        status: 'status',
+        contractEndDate: 'contractEndDate',
+      };
+  
+      const sort = { [sortMapping[sortField] || 'contractEndDate']: sortOrder };
+  
+      const sales = await Sale.find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .populate('leadId', 'name businessName')
+        .populate('notes.createdBy', 'name email')
+        .lean();
+  
+      const totalSales = await Sale.countDocuments(query);
+  
+      res.status(200).json({
+        success: true,
+        data: sales,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalSales / limit),
+          totalSales,
+          hasMore: skip + sales.length < totalSales,
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching due sales:', error);
       res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
   };

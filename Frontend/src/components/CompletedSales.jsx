@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { ChevronUp, ChevronDown } from 'lucide-react';
+const API = import.meta.env.VITE_API_URL;
 
 const CompletedSales = () => {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ const CompletedSales = () => {
       }).toString();
 
       console.log('Fetching completed sales with query:', query);
-      const response = await fetch(`http://localhost:3000/sale/completedsales?${query}`, {
+      const response = await fetch(`${API}/Sale/completedsales?${query}`, {
         method: 'GET',
         credentials: 'include',
       });

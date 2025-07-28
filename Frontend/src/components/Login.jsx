@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import logo from '../assets/logo.avif';
 import login from '../assets/login.avif';
+const API = import.meta.env.VITE_API_URL;
 
 // Fallback Spinner component
 const Spinner = ({ size = 'w-4 h-4', color = 'text-white' }) => (
@@ -20,25 +21,6 @@ const Login = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Check if user is already logged in
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('http://localhost:3000/Auth/check-auth', {
-          method: 'GET',
-          credentials: 'include',
-        });
-        const data = await response.json();
-        if (response.ok && data.isAuthenticated) {
-          navigate('/AddLead');
-        }
-      } catch (err) {
-        console.error('Auth check error:', err);
-      }
-    };
-    checkAuth();
-  }, [navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -66,7 +48,7 @@ const Login = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3000/Auth/login', {
+      const response = await fetch(`${API}/Auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,7 +90,7 @@ const Login = () => {
 
   return (
     <div className="flex h-screen w-full bg-gray-100">
-      {/* Logo Section (Commented out as in provided code) */}
+      {/* Logo Section */}
       <div className="absolute top-10 left-10 flex items-center space-x-2 z-10">
         <img src={logo} alt="Zebra" className="h-8 w-8" />
         <h1 className="text-xl font-bold text-gray-900">ZebraAutogroup</h1>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+const API = import.meta.env.VITE_API_URL;
 
 const AddLead = () => {
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ const AddLead = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3000/Lead/createlead', {
+      const response = await fetch(`${API}/Lead/createlead`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

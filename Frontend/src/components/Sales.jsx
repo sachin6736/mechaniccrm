@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { ChevronUp, ChevronDown, Search } from 'lucide-react';
+const API = import.meta.env.VITE_API_URL;
 
 // Custom debounce function
 const debounce = (func, wait) => {
@@ -38,7 +39,7 @@ const Sales = () => {
       }).toString();
 
       console.log('Fetching sales with query:', query);
-      const response = await fetch(`http://localhost:3000/Sale/sales?${query}`, {
+      const response = await fetch(`${API}/Sale/sales?${query}`, {
         method: 'GET',
         credentials: 'include',
       });

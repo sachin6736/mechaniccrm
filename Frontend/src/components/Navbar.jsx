@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, X, LogOut, Users, PlusCircle, DollarSign } from 'lucide-react';
+import { Menu, X, LogOut, Users, PlusCircle, DollarSign, Calendar } from 'lucide-react';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+const API = import.meta.env.VITE_API_URL;
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -13,7 +14,7 @@ const Navbar = () => {
   useEffect(() => {
     const fetchUserRole = async () => {
       try {
-        const response = await fetch('http://localhost:3000/Auth/check-auth', {
+        const response = await fetch(`${API}/Auth/check-auth`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -30,7 +31,7 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     try {
-      const res = await fetch('http://localhost:3000/Auth/logout', {
+      const res = await fetch(`${API}/Auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -88,6 +89,14 @@ const Navbar = () => {
       icon: <DollarSign className="h-6 w-6 text-indigo-600" />,
       onClick: () => {
         navigate('/completed-sales');
+        setShowSidebar(false);
+      },
+    },
+    {
+      label: 'Dues',
+      icon: <Calendar className="h-6 w-6 text-indigo-600" />,
+      onClick: () => {
+        navigate('/due-sales');
         setShowSidebar(false);
       },
     },
