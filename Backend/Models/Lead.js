@@ -1,16 +1,16 @@
 import mongoose from 'mongoose';
 
-// Counter schema for auto-incrementing lead_id
+// Counter schema to manage auto-incrementing leadId
 const counterSchema = new mongoose.Schema({
   _id: { type: String, required: true },
-  sequence_value: { type: Number, default: 0 },
+  sequence: { type: Number, default: 0 },
 });
 
 const Counter = mongoose.model('Counter', counterSchema);
 
-// Lead schema with lead_id field
+// Lead schema with leadId field
 const leadSchema = new mongoose.Schema({
-  lead_id: { type: Number, unique: true },
+  leadId: { type: Number, unique: true, required: true },
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   phoneNumber: { type: String, required: true },
@@ -50,5 +50,5 @@ leadSchema.pre('save', async function (next) {
 });
 
 const Lead = mongoose.model('Lead', leadSchema);
-
-export { Lead, Counter }; // Export both models
+export default Lead;
+export { Counter }; // Export Counter for use in controller

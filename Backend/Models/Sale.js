@@ -10,7 +10,11 @@ const Counter = mongoose.model('Counter', counterSchema);
 
 // Sale schema with sale_id field
 const saleSchema = new mongoose.Schema({
-  sale_id: { type: Number, unique: true },
+  saleId: {
+    type: Number,
+    unique: true,
+    required: true,
+  },
   leadId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Lead',
@@ -41,15 +45,15 @@ const saleSchema = new mongoose.Schema({
     required: true,
   },
   card: {
-    type: String, // Store last 4 digits or tokenized card info for security
+    type: String,
     required: true,
   },
   exp: {
-    type: String, // Format: MM/YY
+    type: String,
     required: true,
   },
   cvv: {
-    type: String, // Store securely or avoid storing sensitive data
+    type: String,
     required: true,
   },
   totalAmount: {
@@ -82,12 +86,12 @@ const saleSchema = new mongoose.Schema({
   paymentDate: {
     type: Date,
     required: false,
-    default: null, // Set to null for draft sales
+    default: null,
   },
   contractEndDate: {
     type: Date,
     required: false,
-    default: null, // Calculated as paymentDate + contractTerm months
+    default: null,
   },
   partialPayments: [{
     amount: { type: Number, required: true },

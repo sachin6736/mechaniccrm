@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import User from '../Models/User.js';
 import mongoose from 'mongoose';
-import Lead from '../Models/Lead.js';
+import Lead, { Counter } from '../Models/Lead.js';
 
 export const createUser = async (req, res) => {
   try {
