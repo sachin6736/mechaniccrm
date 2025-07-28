@@ -26,7 +26,7 @@ const CompletedSales = () => {
       }).toString();
 
       console.log('Fetching completed sales with query:', query);
-      const response = await fetch(`${API}/sale/completedsales?${query}`, {
+      const response = await fetch(`${API}/Sale/completedsales?${query}`, {
         method: 'GET',
         credentials: 'include',
       });

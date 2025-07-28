@@ -71,6 +71,7 @@ export const getAllSales = async (req, res) => {
 };
 
   export const getCompletedSales = async (req, res) => {
+    console.log("completedsales working")
     try {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 10;

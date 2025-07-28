@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Sale Routes
 router.get('/sales', authMiddleware, getAllSales);
-router.get('/completed-sales', authMiddleware, getCompletedSales);
+router.get('/completedsales', authMiddleware, getCompletedSales);
 router.get('/due-sales', authMiddleware, getDueSales);
 router.get('/getsalebyid/:id', authMiddleware, getSaleById);
 router.put('/updatenotes/:id', authMiddleware, updateNotes);
