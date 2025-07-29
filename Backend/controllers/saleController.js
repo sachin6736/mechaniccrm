@@ -10,22 +10,23 @@ export const getAllSales = async (req, res) => {
     const sortField = req.query.sortField || 'createdAt';
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
     const search = req.query.search || '';
-    const status = req.query.status || '';
 
-    console.log('Fetching sales with params:', { page, limit, skip, sortField, sortOrder, search, status });
+    console.log('Fetching sales with params:', { page, limit, skip, sortField, sortOrder, search });
 
     // Build query
-    const query = {};
-    if (status) {
-      query.status = status;
-    }
+    const query = { status: 'Pending' }; // Restrict to Pending status
     if (search) {
       const searchRegex = new RegExp(search, 'i'); // Case-insensitive regex
-      query.$or = [
-        { name: searchRegex },
-        { email: searchRegex },
-        { phoneNumber: searchRegex },
-        { businessName: searchRegex },
+      query.$and = [
+        { status: 'Pending' }, // Ensure status remains Pending
+        {
+          $or: [
+            { name: searchRegex },
+            { email: searchRegex },
+            { phoneNumber: searchRegex },
+            { businessName: searchRegex },
+          ],
+        },
       ];
     }
 
@@ -280,10 +281,10 @@ export const getAllSales = async (req, res) => {
       if (updates.totalAmount && (isNaN(updates.totalAmount) || updates.totalAmount < 0)) {
         return res.status(400).json({ success: false, message: 'Invalid total amount' });
       }
-      if (updates.paymentMethod && !['Credit Card', 'Bank Transfer', 'PayPal', 'Other', null].includes(updates.paymentMethod)) {
+      if (updates.paymentMethod && !['Credit Card', 'Bank Transfer', 'PayPal', 'Other'].includes(updates.paymentMethod)) {
         return res.status(400).json({ success: false, message: 'Invalid payment method' });
       }
-      if (updates.paymentType && !['Recurring', 'One-time', null].includes(updates.paymentType)) {
+      if (updates.paymentType && !['Recurring', 'One-time'].includes(updates.paymentType)) {
         return res.status(400).json({ success: false, message: 'Invalid payment type' });
       }
       if (updates.contractTerm === undefined || updates.contractTerm === null || isNaN(updates.contractTerm) || parseInt(updates.contractTerm) <= 0) {
@@ -292,14 +293,19 @@ export const getAllSales = async (req, res) => {
       if (updates.status && !['Pending', 'Completed', 'Failed', 'Refunded', 'Part-Payment'].includes(updates.status)) {
         return res.status(400).json({ success: false, message: 'Invalid status' });
       }
-      if (updates.card && !/^\d{16}$/.test(updates.card)) {
-        return res.status(400).json({ success: false, message: 'Invalid card number (must be 16 digits)' });
-      }
-      if (updates.exp && !/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(updates.exp)) {
-        return res.status(400).json({ success: false, message: 'Invalid expiration date (must be MM/YY)' });
-      }
-      if (updates.cvv && !/^\d{3,4}$/.test(updates.cvv)) {
-        return res.status(400).json({ success: false, message: 'Invalid CVV (must be 3 or 4 digits)' });
+      if (updates.paymentMethod === 'Credit Card') {
+        if (updates.card && !/^\d{16}$/.test(updates.card)) {
+          return res.status(400).json({ success: false, message: 'Invalid card number (must be 16 digits)' });
+        }
+        if (updates.exp && !/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(updates.exp)) {
+          return res.status(400).json({ success: false, message: 'Invalid expiration date (must be MM/YY)' });
+        }
+        if (updates.cvv && !/^\d{3,4}$/.test(updates.cvv)) {
+          return res.status(400).json({ success: false, message: 'Invalid CVV (must be 3 or 4 digits)' });
+        }
+        if (!updates.card || !updates.exp || !updates.cvv) {
+          return res.status(400).json({ success: false, message: 'Card number, expiration date, and CVV are required for Credit Card payments' });
+        }
       }
       if (updates.partialPayments) {
         for (const payment of updates.partialPayments) {
@@ -334,9 +340,9 @@ export const getAllSales = async (req, res) => {
           paymentType: sale.paymentType,
           contractTerm: sale.contractTerm,
           paymentMethod: sale.paymentMethod,
-          card: sale.card,
-          exp: sale.exp,
-          cvv: sale.cvv,
+          card: sale.paymentMethod === 'Credit Card' ? sale.card : null,
+          exp: sale.paymentMethod === 'Credit Card' ? sale.exp : null,
+          cvv: sale.paymentMethod === 'Credit Card' ? sale.cvv : null,
           paymentDate: sale.paymentDate,
           contractEndDate: sale.contractEndDate,
           partialPayments: sale.partialPayments || [],
@@ -358,9 +364,7 @@ export const getAllSales = async (req, res) => {
         updates.paymentMethod ||
         updates.paymentType ||
         updates.contractTerm ||
-        updates.card ||
-        updates.exp ||
-        updates.cvv
+        (updates.paymentMethod === 'Credit Card' && (updates.card || updates.exp || updates.cvv))
       ) {
         sale.notes.push({
           text: `Updated payment details: Total Amount $${parseFloat(updates.totalAmount || sale.totalAmount).toFixed(2)}, Payment Method: ${updates.paymentMethod || sale.paymentMethod || 'Not set'}, Payment Type: ${updates.paymentType || sale.paymentType || 'Not set'}, Contract Term: ${updates.contractTerm || sale.contractTerm} months, Contract End Date: ${newContractEndDate.toLocaleDateString()}`,
@@ -376,7 +380,7 @@ export const getAllSales = async (req, res) => {
         sale.paymentDate = updates.paymentDate || new Date();
       }
   
-      if (updates.card || updates.exp || updates.cvv) {
+      if (updates.paymentMethod === 'Credit Card' && (updates.card || updates.exp || updates.cvv)) {
         sale.notes.push({
           text: 'Card details updated by user',
           createdAt: new Date(),
@@ -384,15 +388,15 @@ export const getAllSales = async (req, res) => {
         });
       }
   
-      // Update sale fields
+      // Update sale fields, clearing card details if paymentMethod is not Credit Card
       Object.assign(sale, {
         totalAmount: updates.totalAmount !== undefined ? updates.totalAmount : sale.totalAmount,
         paymentMethod: updates.paymentMethod !== undefined ? updates.paymentMethod : sale.paymentMethod,
         paymentType: updates.paymentType !== undefined ? updates.paymentType : sale.paymentType,
         contractTerm: updates.contractTerm !== undefined ? updates.contractTerm : sale.contractTerm,
-        card: updates.card !== undefined ? updates.card : sale.card,
-        exp: updates.exp !== undefined ? updates.exp : sale.exp,
-        cvv: updates.cvv !== undefined ? updates.cvv : sale.cvv,
+        card: updates.paymentMethod === 'Credit Card' ? updates.card : null,
+        exp: updates.paymentMethod === 'Credit Card' ? updates.exp : null,
+        cvv: updates.paymentMethod === 'Credit Card' ? updates.cvv : null,
         status: sale.status, // Use the updated status
         partialPayments: updatedPartialPayments,
         paymentDate: sale.paymentDate, // Use the updated paymentDate

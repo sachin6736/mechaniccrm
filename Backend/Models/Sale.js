@@ -37,15 +37,18 @@ const saleSchema = new mongoose.Schema({
   },
   card: {
     type: String,
-    required: true,
+    required: false,
+    default: null,
   },
   exp: {
     type: String,
-    required: true,
+    required: false,
+    default: null,
   },
   cvv: {
     type: String,
-    required: true,
+    required: false,
+    default: null,
   },
   totalAmount: {
     type: Number,
@@ -95,9 +98,9 @@ const saleSchema = new mongoose.Schema({
     paymentType: { type: String, enum: ['Recurring', 'One-time', null] },
     contractTerm: { type: String },
     paymentMethod: { type: String, enum: ['Credit Card', 'Bank Transfer', 'PayPal', 'Other', null] },
-    card: { type: String },
-    exp: { type: String },
-    cvv: { type: String },
+    card: { type: String, default: null },
+    exp: { type: String, default: null },
+    cvv: { type: String, default: null },
     paymentDate: { type: Date },
     contractEndDate: { type: Date },
     partialPayments: [{

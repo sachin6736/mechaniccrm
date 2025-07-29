@@ -84,7 +84,7 @@ const SaleDetails = () => {
         }
         const data = await response.json();
         if (!data.success) {
-          throw new Error(data.message || 'Failed to fetch sale data');
+          throw new Error(data.messageswe || 'Failed to fetch sale data');
         }
         setSale(data.data);
         setNotes(data.data.notes || []);
@@ -235,12 +235,9 @@ const SaleDetails = () => {
       !paymentForm.totalAmount ||
       !paymentForm.paymentMethod ||
       !paymentForm.paymentType ||
-      !paymentForm.contractTerm ||
-      !paymentForm.card ||
-      !paymentForm.exp ||
-      !paymentForm.cvv
+      !paymentForm.contractTerm
     ) {
-      toast.warning('All payment fields are required');
+      toast.warning('Total amount, payment method, payment type, and contract term are required');
       return;
     }
 
@@ -254,19 +251,19 @@ const SaleDetails = () => {
       return;
     }
 
-    if (!/^\d{16}$/.test(paymentForm.card)) {
-      toast.warning('Please enter a valid 16-digit card number');
-      return;
-    }
-
-    if (!/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(paymentForm.exp)) {
-      toast.warning('Please enter a valid expiration date (MM/YY)');
-      return;
-    }
-
-    if (!/^\d{3,4}$/.test(paymentForm.cvv)) {
-      toast.warning('Please enter a valid CVV (3 or 4 digits)');
-      return;
+    if (paymentForm.paymentMethod === 'Credit Card') {
+      if (!paymentForm.card || !/^\d{16}$/.test(paymentForm.card)) {
+        toast.warning('Please enter a valid 16-digit card number');
+        return;
+      }
+      if (!paymentForm.exp || !/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(paymentForm.exp)) {
+        toast.warning('Please enter a valid expiration date (MM/YY)');
+        return;
+      }
+      if (!paymentForm.cvv || !/^\d{3,4}$/.test(paymentForm.cvv)) {
+        toast.warning('Please enter a valid CVV (3 or 4 digits)');
+        return;
+      }
     }
 
     const currentDate = new Date();
@@ -281,7 +278,6 @@ const SaleDetails = () => {
     if (paymentForm.paymentType === 'Recurring') {
       const partialPaymentAmount = parseFloat(paymentForm.totalAmount) / parseInt(paymentForm.contractTerm);
       if (remainingAmount > 0 && partialPaymentAmount > remainingAmount) {
- Goodwin
         toast.warning(`Partial payment amount (${partialPaymentAmount.toFixed(2)}) exceeds remaining amount (${remainingAmount.toFixed(2)})`);
         return;
       }
@@ -327,9 +323,9 @@ const SaleDetails = () => {
             paymentType: sale.paymentType,
             contractTerm: sale.contractTerm,
             paymentMethod: sale.paymentMethod,
-            card: sale.card,
-            exp: sale.exp,
-            cvv: sale.cvv,
+            card: sale.paymentMethod === 'Credit Card' ? sale.card : null,
+            exp: sale.paymentMethod === 'Credit Card' ? sale.exp : null,
+            cvv: sale.paymentMethod === 'Credit Card' ? sale.cvv : null,
             paymentDate: sale.paymentDate,
             contractEndDate: sale.contractEndDate,
             partialPayments: sale.partialPayments || [],
@@ -353,9 +349,9 @@ const SaleDetails = () => {
             paymentMethod: paymentForm.paymentMethod,
             paymentType: paymentForm.paymentType,
             contractTerm: paymentForm.contractTerm,
-            card: paymentForm.card,
-            exp: paymentForm.exp,
-            cvv: paymentForm.cvv,
+            card: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.card : null,
+            exp: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.exp : null,
+            cvv: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.cvv : null,
             partialPayments: updatedPartialPayments,
             paymentDate: paymentDate.toISOString(),
             contractEndDate: newContractEndDate.toISOString(),
@@ -417,9 +413,9 @@ const SaleDetails = () => {
         paymentMethod: sale.paymentMethod || '',
         paymentType: sale.paymentType || '',
         contractTerm: sale.contractTerm || '',
-        card: '',
-        exp: '',
-        cvv: '',
+        card: sale.paymentMethod === 'Credit Card' ? sale.card || '' : '',
+        exp: sale.paymentMethod === 'Credit Card' ? sale.exp || '' : '',
+        cvv: sale.paymentMethod === 'Credit Card' ? sale.cvv || '' : '',
       });
     } else {
       setPaymentForm({
@@ -631,13 +627,16 @@ const SaleDetails = () => {
             </div>
             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
               {[
-                {
+                sale.paymentMethod === 'Credit Card' && {
                   label: 'Card Number',
                   key: 'card',
                   format: (value) => userRole === 'admin' ? value : `**** **** **** ${value?.slice(-4) || '****'}`,
                 },
-                { label: 'Expiration Date', key: 'exp' },
-                {
+                sale.paymentMethod === 'Credit Card' && {
+                  label: 'Expiration Date',
+                  key: 'exp',
+                },
+                sale.paymentMethod === 'Credit Card' && {
                   label: 'CVV',
                   key: 'cvv',
                   format: (value) => userRole === 'admin' ? value : '***',
@@ -713,13 +712,16 @@ const SaleDetails = () => {
                           { label: 'Payment Type', key: 'paymentType' },
                           { label: 'Contract Term', key: 'contractTerm' },
                           { label: 'Payment Method', key: 'paymentMethod' },
-                          {
+                          contract.paymentMethod === 'Credit Card' && {
                             label: 'Card Number',
                             key: 'card',
                             format: (value) => userRole === 'admin' ? value : `**** **** **** ${value?.slice(-4) || '****'}`,
                           },
-                          { label: 'Expiration Date', key: 'exp' },
-                          {
+                          contract.paymentMethod === 'Credit Card' && {
+                            label: 'Expiration Date',
+                            key: 'exp',
+                          },
+                          contract.paymentMethod === 'Credit Card' && {
                             label: 'CVV',
                             key: 'cvv',
                             format: (value) => userRole === 'admin' ? value : '***',
@@ -734,14 +736,16 @@ const SaleDetails = () => {
                             key: 'contractEndDate',
                             format: (value) => (value ? new Date(value).toLocaleDateString() : 'Not Set'),
                           },
-                        ].map((item, i) => (
-                          <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                            <span className="text-xs sm:text-sm font-medium text-gray-600">{item.label}</span>
-                            <span className="text-xs sm:text-sm text-gray-900 truncate">
-                              {item.format ? item.format(contract[item.key]) : contract[item.key] || 'Not set'}
-                            </span>
-                          </div>
-                        ))}
+                        ]
+                          .filter(Boolean)
+                          .map((item, i) => (
+                            <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                              <span className="text-xs sm:text-sm font-medium text-gray-600">{item.label}</span>
+                              <span className="text-xs sm:text-sm text-gray-900 truncate">
+                                {item.format ? item.format(contract[item.key]) : contract[item.key] || 'Not set'}
+                              </span>
+                            </div>
+                          ))}
                         {contract.partialPayments && contract.partialPayments.length > 0 && (
                           <div className="mt-2">
                             <h5 className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Partial Payments</h5>
@@ -834,7 +838,15 @@ const SaleDetails = () => {
                   <label className="block text-xs sm:text-sm font-medium text-gray-700">Payment Method</label>
                   <select
                     value={paymentForm.paymentMethod}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
+                    onChange={(e) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        paymentMethod: e.target.value,
+                        card: e.target.value !== 'Credit Card' ? '' : paymentForm.card,
+                        exp: e.target.value !== 'Credit Card' ? '' : paymentForm.exp,
+                        cvv: e.target.value !== 'Credit Card' ? '' : paymentForm.cvv,
+                      })
+                    }
                     className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                     required
                   >
@@ -844,39 +856,43 @@ const SaleDetails = () => {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700">Card Number</label>
-                  <input
-                    type="text"
-                    value={paymentForm.card}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, card: e.target.value })}
-                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
-                    placeholder="Enter full card number"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700">Expiration Date (MM/YY)</label>
-                  <input
-                    type="text"
-                    value={paymentForm.exp}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, exp: e.target.value })}
-                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
-                    placeholder="MM/YY"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700">CVV</label>
-                  <input
-                    type="text"
-                    value={paymentForm.cvv}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value })}
-                    className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
-                    placeholder="Enter CVV"
-                    required
-                  />
-                </div>
+                {paymentForm.paymentMethod === 'Credit Card' && (
+                  <>
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700">Card Number</label>
+                      <input
+                        type="text"
+                        value={paymentForm.card}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, card: e.target.value })}
+                        className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
+                        placeholder="Enter full card number"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700">Expiration Date (MM/YY)</label>
+                      <input
+                        type="text"
+                        value={paymentForm.exp}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, exp: e.target.value })}
+                        className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
+                        placeholder="MM/YY"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700">CVV</label>
+                      <input
+                        type="text"
+                        value={paymentForm.cvv}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value })}
+                        className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
+                        placeholder="Enter CVV"
+                        required
+                      />
+                    </div>
+                  </>
+                )}
               </div>
               <div className="mt-4 sm:mt-6 flex justify-end gap-2">
                 <button
