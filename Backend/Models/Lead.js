@@ -8,7 +8,7 @@ const counterSchema = new mongoose.Schema({
 
 const Counter = mongoose.model('Counter', counterSchema);
 
-// Lead schema with leadId field
+// Lead schema with leadId and createdBy fields
 const leadSchema = new mongoose.Schema({
   leadId: { type: Number, unique: true, required: true },
   name: { type: String, required: true },
@@ -28,8 +28,9 @@ const leadSchema = new mongoose.Schema({
   },
   importantDates: [{ type: String }],
   createdAt: { type: Date, default: Date.now },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 });
 
 const Lead = mongoose.model('Lead', leadSchema);
 export default Lead;
-export { Counter }; // Export Counter for use in controller
+export { Counter };

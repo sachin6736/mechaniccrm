@@ -129,3 +129,18 @@ export const logout = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
+
+
+export const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find().select('name email').lean();
+
+    res.status(200).json({
+      success: true,
+      data: users,
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};

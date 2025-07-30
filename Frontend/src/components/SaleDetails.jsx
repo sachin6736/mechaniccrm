@@ -84,8 +84,9 @@ const SaleDetails = () => {
         }
         const data = await response.json();
         if (!data.success) {
-          throw new Error(data.messageswe || 'Failed to fetch sale data');
+          throw new Error(data.message || 'Failed to fetch sale data');
         }
+        console.log('Fetched sale:', data.data); // Log the fetched sale data
         setSale(data.data);
         setNotes(data.data.notes || []);
         setPaymentForm({
@@ -517,6 +518,11 @@ const SaleDetails = () => {
                 { label: 'Business Name', key: 'businessName' },
                 { label: 'Business Address', key: 'businessAddress' },
                 {
+                  label: 'Sale Created By',
+                  key: 'createdBy',
+                  format: (value) => value?.name || 'Unknown',
+                },
+                {
                   label: 'Created At',
                   key: 'createdAt',
                   format: (value) => new Date(value).toLocaleString(),
@@ -669,6 +675,11 @@ const SaleDetails = () => {
                   label: 'Payment Date',
                   key: 'paymentDate',
                   format: (value) => (value ? new Date(value).toLocaleString() : 'Not Set'),
+                },
+                {
+                  label: 'Created By',
+                  key: 'createdBy',
+                  format: (value) => value?.name || 'Unknown',
                 },
               ]
                 .filter(Boolean)

@@ -7,6 +7,7 @@ export const createLead = async (req, res) => {
   try {
     const { name, email, phoneNumber, businessName, businessAddress, notes, disposition } = req.body;
     const userId = req.user?.id;
+    console.log("Userid", userId);
 
     // Validate required fields
     if (!name || !email || !phoneNumber || !businessName || !businessAddress) {
@@ -60,7 +61,7 @@ export const createLead = async (req, res) => {
       });
     }
 
-    // Create new lead with leadId
+    // Create new lead with leadId and createdBy
     const lead = new Lead({
       leadId,
       name,
@@ -71,12 +72,15 @@ export const createLead = async (req, res) => {
       notes: notesArray,
       disposition: disposition || 'Follow up',
       importantDates: [],
+      createdBy: userId || null,
     });
 
     await lead.save();
 
-    // Populate notes.createdBy for response
-    const populatedLead = await Lead.findById(lead._id).populate('notes.createdBy', 'name email');
+    // Populate notes.createdBy and createdBy for response
+    const populatedLead = await Lead.findById(lead._id)
+      .populate('notes.createdBy', 'name email')
+      .populate('createdBy', 'name email');
 
     res.status(201).json({
       success: true,
@@ -104,16 +108,16 @@ export const getLeads = async (req, res) => {
       const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
       const disposition = req.query.disposition || '';
       const search = req.query.search || '';
-  
+
       console.log('Fetching leads with params:', { page, limit, skip, sortField, sortOrder, disposition, search });
-  
+
       // Build query
       const query = {};
       if (disposition) {
         query.disposition = disposition;
       }
       if (search) {
-        const searchRegex = new RegExp(search, 'i'); // Case-insensitive regex
+        const searchRegex = new RegExp(search, 'i');
         query.$or = [
           { name: searchRegex },
           { email: searchRegex },
@@ -121,8 +125,7 @@ export const getLeads = async (req, res) => {
           { businessName: searchRegex },
         ];
       }
-  
-      // Map frontend sort fields to MongoDB sort fields
+
       const sortMapping = {
         name: 'name',
         email: 'email',
@@ -131,17 +134,18 @@ export const getLeads = async (req, res) => {
         disposition: 'disposition',
         createdAt: 'createdAt',
       };
-  
+
       const sort = { [sortMapping[sortField] || 'createdAt']: sortOrder };
-  
+
       const leads = await Lead.find(query)
         .sort(sort)
         .skip(skip)
         .limit(limit)
+        .populate('createdBy', 'name email')
         .lean();
-  
+
       const totalLeads = await Lead.countDocuments(query);
-  
+
       res.status(200).json({
         success: true,
         data: leads,
@@ -164,7 +168,10 @@ export const getLeads = async (req, res) => {
 export const getLeadById = async (req, res) => {
     console.log("Fetching lead with ID:", req.params.id);
     try {
-      const lead = await Lead.findById(req.params.id).populate('notes.createdBy', 'name email');
+      const lead = await Lead.findById(req.params.id)
+        .populate('notes.createdBy', 'name email')
+        .populate('createdBy', 'name email');
+      console.log("Single lead", lead);
       if (!lead) {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
@@ -178,28 +185,31 @@ export const getLeadById = async (req, res) => {
 export const updateNotes = async (req, res) => {
     try {
       const { text } = req.body;
-      const { id } = req.params; // Lead ID
-      const userId = req.user.id; // From authMiddleware
-  
+      const { id } = req.params;
+      const userId = req.user.id;
+
       if (!text || !text.trim()) {
         return res.status(400).json({ success: false, message: 'Note text is required' });
       }
-  
+
       const lead = await Lead.findById(id);
       if (!lead) {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
-  
-      // Add new note with user ID
+
       lead.notes.push({
         text: text.trim(),
         createdAt: new Date(),
         createdBy: userId,
       });
-  
+
       const updatedLead = await lead.save();
-  
-      res.status(200).json({ success: true, message: 'Note added successfully', data: updatedLead });
+
+      const populatedLead = await Lead.findById(id)
+        .populate('notes.createdBy', 'name email')
+        .populate('createdBy', 'name email');
+
+      res.status(200).json({ success: true, message: 'Note added successfully', data: populatedLead });
     } catch (error) {
       console.error('Error adding note:', error);
       res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -212,14 +222,12 @@ export const editLead = async (req, res) => {
       const { name, email, phoneNumber, businessName, businessAddress } = req.body;
       const userId = req.user.id;
 
-      // Validate input
       if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ success: false, message: 'Invalid lead ID' });
       }
       if (!mongoose.Types.ObjectId.isValid(userId)) {
         return res.status(400).json({ success: false, message: 'Invalid user ID' });
       }
-      // Allow partial updates, but ensure at least one field is provided
       const updates = { name, email, phoneNumber, businessName, businessAddress };
       const providedFields = Object.fromEntries(
         Object.entries(updates).filter(([_, value]) => value !== undefined && value !== '')
@@ -228,13 +236,11 @@ export const editLead = async (req, res) => {
         return res.status(400).json({ success: false, message: 'At least one field must be provided for update' });
       }
 
-      // Find the lead
       const lead = await Lead.findById(id);
       if (!lead) {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
 
-      // Track changes for lead
       const leadChanges = [];
       for (const [field, newValue] of Object.entries(providedFields)) {
         const oldValue = lead[field];
@@ -244,7 +250,6 @@ export const editLead = async (req, res) => {
         }
       }
 
-      // Add a note to lead if changes were made
       if (leadChanges.length > 0) {
         const noteText = `Edited lead: ${leadChanges.join(', ')}`;
         lead.notes.push({
@@ -254,7 +259,6 @@ export const editLead = async (req, res) => {
         });
       }
 
-      // Save the updated lead
       try {
         await lead.save();
       } catch (error) {
@@ -264,17 +268,14 @@ export const editLead = async (req, res) => {
         throw error;
       }
 
-      // Find and update the associated sale, if it exists
       const sale = await Sale.findOne({ leadId: id });
       if (sale) {
         const saleChanges = [];
-        // Update sale fields
         for (const [field, newValue] of Object.entries(providedFields)) {
           const oldValue = sale[field];
           if (oldValue !== newValue && newValue !== undefined) {
             saleChanges.push(`${field} from "${oldValue || 'N/A'}" to "${newValue}"`);
             sale[field] = newValue;
-            // Update billingAddress if businessAddress is updated
             if (field === 'businessAddress') {
               sale.billingAddress = newValue;
               saleChanges.push(`billingAddress from "${oldValue || 'N/A'}" to "${newValue}"`);
@@ -282,7 +283,6 @@ export const editLead = async (req, res) => {
           }
         }
 
-        // Add a note to sale if changes were made
         if (saleChanges.length > 0) {
           sale.notes.push({
             text: `Updated sale details due to lead edit: ${saleChanges.join(', ')}`,
@@ -293,8 +293,9 @@ export const editLead = async (req, res) => {
         }
       }
 
-      // Populate createdBy for all notes in the response
-      const updatedLead = await Lead.findById(id).populate('notes.createdBy', 'name email');
+      const updatedLead = await Lead.findById(id)
+        .populate('notes.createdBy', 'name email')
+        .populate('createdBy', 'name email');
       res.status(200).json({ success: true, data: updatedLead });
     } catch (error) {
       console.error('Error updating lead:', error.message);
@@ -307,7 +308,7 @@ export const updateDates = async (req, res) => {
       const { id } = req.params;
       const { importantDates, noteText } = req.body;
       const userId = req.user.id;
-  
+
       if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ success: false, message: 'Invalid lead ID' });
       }
@@ -320,28 +321,30 @@ export const updateDates = async (req, res) => {
       if (!noteText || !noteText.trim()) {
         return res.status(400).json({ success: false, message: 'Note text is required' });
       }
-  
+
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       const invalidDates = importantDates.filter(date => !dateRegex.test(date));
       if (invalidDates.length > 0) {
         return res.status(400).json({ success: false, message: 'Invalid date format in importantDates' });
       }
-  
+
       const lead = await Lead.findById(id);
       if (!lead) {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
-  
+
       lead.importantDates = importantDates;
       lead.notes.push({
         text: noteText.trim(),
         createdAt: new Date(),
         createdBy: userId,
       });
-  
+
       await lead.save();
-  
-      const updatedLead = await Lead.findById(id).populate('notes.createdBy', 'name email');
+
+      const updatedLead = await Lead.findById(id)
+        .populate('notes.createdBy', 'name email')
+        .populate('createdBy', 'name email');
       res.status(200).json({ success: true, data: updatedLead });
     } catch (error) {
       console.error('Error updating dates:', error.message);
@@ -394,7 +397,6 @@ export const editStatus = async (req, res) => {
         });
         console.log('Existing sale found for leadId:', lead._id, 'Sale ID:', existingSale._id, 'saleId:', existingSale.saleId);
       } else {
-        // Get and increment saleId
         const counter = await SaleCounter.findOneAndUpdate(
           { _id: 'saleId' },
           { $inc: { sequence: 1 } },
@@ -420,6 +422,7 @@ export const editStatus = async (req, res) => {
           paymentMethod: null,
           status: 'Pending',
           paymentDate: null,
+          createdBy: req.user ? req.user.id : null, // Set createdBy
           notes: [{
             text: `Draft sale created with saleId ${saleId} by changing lead status to "Sale". Payment details pending.`,
             createdAt: new Date(),
@@ -438,7 +441,9 @@ export const editStatus = async (req, res) => {
 
     await lead.save();
 
-    const updatedLead = await Lead.findById(id).populate('notes.createdBy', 'name');
+    const updatedLead = await Lead.findById(id)
+      .populate('notes.createdBy', 'name')
+      .populate('createdBy', 'name email');
     res.status(200).json({ success: true, data: updatedLead });
   } catch (error) {
     console.error('Error updating lead status:', error);
@@ -450,6 +455,7 @@ export const getLeadsForDownload = async (req, res) => {
   try {
     const leads = await Lead.find({})
       .populate('notes.createdBy', 'name email')
+      .populate('createdBy', 'name email')
       .lean();
 
     res.status(200).json({

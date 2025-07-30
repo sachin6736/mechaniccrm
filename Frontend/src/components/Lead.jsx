@@ -67,6 +67,7 @@ const Lead = () => {
         if (!data.success) {
           throw new Error(data.message || 'Failed to fetch lead data');
         }
+        console.log('Fetched single lead:', data.data); // Log the fetched lead data
         setSingleLead(data.data);
         setNotes(data.data.notes || []);
         setSelectedDates(data.data.importantDates || []);
@@ -86,7 +87,7 @@ const Lead = () => {
         setLoading(false);
       }
     };
-
+    
     if (id) {
       fetchSingleLead();
     } else {
@@ -400,12 +401,13 @@ const Lead = () => {
                 { label: 'Business Name', key: 'businessName' },
                 { label: 'Business Address', key: 'businessAddress' },
                 { label: 'Disposition', key: 'disposition' },
+                { label: 'Lead Created By', key: 'createdBy', format: (value) => value?.name || 'Unknown' },
                 { label: 'Created At', key: 'createdAt', format: (value) => new Date(value).toLocaleString() },
               ].map((item, index) => (
                 <div key={index} className="flex justify-between items-center border-b border-gray-200 py-2">
                   <span className="text-sm font-medium text-gray-600">{item.label}</span>
                   <div className="flex items-center gap-2 w-1/2">
-                    {isEditingLead && item.key !== 'disposition' && item.key !== 'createdAt' ? (
+                    {isEditingLead && item.key !== 'disposition' && item.key !== 'createdAt' && item.key !== 'createdBy' ? (
                       <input
                         type="text"
                         value={editForm[item.key] || ''}

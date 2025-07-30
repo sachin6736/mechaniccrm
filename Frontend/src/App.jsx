@@ -10,6 +10,7 @@ import Sales from './components/Sales';
 import SaleDetails from './components/SaleDetails';
 import CompletedSales from './components/CompletedSales';
 import DueSales from './components/DueSales';
+import UserSales from './components/Usersales';
 import Team from './components/Team';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/sale/:id" element={<SaleDetails />} />
           <Route path="/completed-sales" element={<CompletedSales />} />
           <Route path="/due-sales" element={<DueSales />} />
+          <Route path="/user-sales" element={<UserSales />} />
           <Route path="/team" element={<Team />} />
         </Route>
       </Routes>
