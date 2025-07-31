@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { ChevronUp, ChevronDown } from 'lucide-react';
+import { PuffLoader } from 'react-spinners';
+import useApiLoading from '../hooks/useApiLoading';
 
 const API = import.meta.env.VITE_API_URL;
 
 const UserSales = () => {
   const navigate = useNavigate();
+  const { loading: apiLoading, withLoading } = useApiLoading();
   const [sales, setSales] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -19,67 +21,72 @@ const UserSales = () => {
   });
   const [sort, setSort] = useState({ field: 'createdAt', order: 'desc' });
   const [users, setUsers] = useState([]);
-  const [selectedUser, setSelectedUser] = useState(''); // Default to empty (logged-in user)
+  const [selectedUser, setSelectedUser] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(null);
+
+  // Derived loading state for spinner and button/input disabling
+  const isLoading = apiLoading.checkAuth || apiLoading.fetchUsers || apiLoading.fetchUserSales;
 
   // Check authentication status and fetch users on mount
   useEffect(() => {
     const checkAuth = async () => {
-      try {
-        const response = await fetch(`${API}/Auth/check-auth`, {
-          method: 'GET',
-          credentials: 'include',
-        });
-        const data = await response.json();
-        if (!data.isAuthenticated) {
+      await withLoading('checkAuth', async () => {
+        try {
+          const response = await fetch(`${API}/Auth/check-auth`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          const data = await response.json();
+          if (!data.isAuthenticated) {
+            setIsAuthenticated(false);
+            toast.error('Please log in to access this page');
+            navigate('/login', { replace: true });
+          } else {
+            setIsAuthenticated(true);
+            await fetchUsers();
+          }
+        } catch (err) {
+          console.error('Error checking auth:', err);
           setIsAuthenticated(false);
-          toast.error('Please log in to access this page');
+          toast.error('Authentication error');
           navigate('/login', { replace: true });
-        } else {
-          setIsAuthenticated(true);
-          fetchUsers();
         }
-      } catch (err) {
-        console.error('Error checking auth:', err);
-        setIsAuthenticated(false);
-        toast.error('Authentication error');
-        navigate('/login', { replace: true });
-      }
+      });
     };
     checkAuth();
   }, [navigate]);
 
   const fetchUsers = async () => {
-    try {
-      const response = await fetch(`${API}/Auth/allusers`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch users');
-      const data = await response.json();
-      if (data.success) {
-        setUsers(data.data);
-      } else {
-        throw new Error(data.message || 'Failed to fetch users');
+    await withLoading('fetchUsers', async () => {
+      try {
+        const response = await fetch(`${API}/Auth/allusers`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (!response.ok) throw new Error('Failed to fetch users');
+        const data = await response.json();
+        if (data.success) {
+          setUsers(data.data);
+        } else {
+          throw new Error(data.message || 'Failed to fetch users');
+        }
+      } catch (err) {
+        console.error('Error fetching users:', err);
+        toast.error('Failed to load user list.');
       }
-    } catch (err) {
-      console.error('Error fetching users:', err);
-      toast.error('Failed to load user list.');
-    }
+    });
   };
 
   // Fetch sales based on selected user
-  useEffect(() => {
-    if (!isAuthenticated) return; // Skip fetching if not authenticated
-    const fetchUserSales = async () => {
+  const fetchUserSales = async () => {
+    await withLoading('fetchUserSales', async () => {
       try {
-        setLoading(true);
         const queryParams = new URLSearchParams({
           page: pagination.currentPage,
           limit: 10,
           sortField: sort.field,
           sortOrder: sort.order,
-          ...(selectedUser && { userId: selectedUser }), // Add userId if selected
+          ...(selectedUser && { userId: selectedUser }),
         });
         const response = await fetch(`${API}/Sale/user-sales?${queryParams}`, {
           method: 'GET',
@@ -97,19 +104,22 @@ const UserSales = () => {
         console.log('Fetched user sales:', data.data);
         setSales(data.data);
         setPagination(data.pagination);
-        setLoading(false);
       } catch (err) {
         console.error('Fetch error:', err);
         setError('Failed to load sales.');
         toast.error('Failed to load sales.');
-        setLoading(false);
       }
-    };
+    });
+  };
 
+  // Trigger fetchUserSales when dependencies change
+  useEffect(() => {
+    if (!isAuthenticated) return;
     fetchUserSales();
   }, [isAuthenticated, pagination.currentPage, sort.field, sort.order, selectedUser]);
 
   const handleSort = (field) => {
+    if (isLoading) return;
     setSort((prev) => ({
       field,
       order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc',
@@ -117,19 +127,26 @@ const UserSales = () => {
   };
 
   const handlePageChange = (newPage) => {
+    if (isLoading || newPage < 1 || newPage > pagination.totalPages) return;
     setPagination((prev) => ({ ...prev, currentPage: newPage }));
   };
 
   const handleUserChange = (e) => {
+    if (isLoading) return;
     setSelectedUser(e.target.value);
     setPagination((prev) => ({ ...prev, currentPage: 1 }));
   };
 
-  // Show loading state while checking authentication
-  if (isAuthenticated === null) {
+  const handleSaleClick = (saleId) => {
+    if (isLoading) return;
+    navigate(`/sale/${saleId}`);
+  };
+
+  // Show loading state while checking authentication, fetching users, or fetching sales
+  if (isAuthenticated === null || apiLoading.checkAuth || apiLoading.fetchUsers || apiLoading.fetchUserSales) {
     return (
       <div className="min-h-screen bg-gray-50 flex justify-center items-center px-4 sm:px-6 md:pl-24 md:pt-20">
-        <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+        <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
       </div>
     );
   }
@@ -139,14 +156,6 @@ const UserSales = () => {
     return null;
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center px-4 sm:px-6 md:pl-24 md:pt-20">
-        <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex justify-center items-center px-4 sm:px-6 md:pl-24 md:pt-20">
@@ -154,7 +163,8 @@ const UserSales = () => {
           <p className="text-sm font-medium">{error}</p>
           <button
             onClick={() => navigate('/')}
-            className="mt-2 px-4 py-1 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700"
+            disabled={isLoading}
+            className={`mt-2 px-4 py-1 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Back to Home
           </button>
@@ -164,7 +174,13 @@ const UserSales = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-6 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-16">
+    <div className="min-h-screen bg-gray-50 py-6 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-16 relative">
+      {/* Centered PuffLoader Overlay with Preferred Color and Opacity */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-10 flex justify-center items-center z-50">
+          <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">My Sales</h2>
@@ -172,7 +188,8 @@ const UserSales = () => {
             <select
               value={selectedUser}
               onChange={handleUserChange}
-              className="w-full sm:w-48 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+              disabled={isLoading}
+              className={`w-full sm:w-48 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <option value="">My Sales</option>
               {users.map((user) => (
@@ -202,7 +219,7 @@ const UserSales = () => {
                   <th
                     key={header.field}
                     scope="col"
-                    className="px-4 py-3 text-left text-xs font-medium text-white bg-[#4f46e5] uppercase tracking-wider cursor-pointer"
+                    className={`px-4 py-3 text-left text-xs font-medium text-white bg-[#4f46e5] uppercase tracking-wider cursor-pointer ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     onClick={() => handleSort(header.field)}
                   >
                     <div className="flex items-center gap-1">
@@ -224,8 +241,8 @@ const UserSales = () => {
                 sales.map((sale) => (
                   <tr
                     key={sale._id}
-                    className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() => navigate(`/sale/${sale._id}`)}
+                    className={`hover:bg-gray-50 ${isLoading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    onClick={() => handleSaleClick(sale._id)}
                   >
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {sale.saleId || 'Not set'}
@@ -269,7 +286,7 @@ const UserSales = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="8" className="px-4 py-3 text-sm text-gray-500 text-center">
+                  <td colSpan="9" className="px-4 py-3 text-sm text-gray-500 text-center">
                     No sales found.
                   </td>
                 </tr>
@@ -288,15 +305,15 @@ const UserSales = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => handlePageChange(pagination.currentPage - 1)}
-                disabled={pagination.currentPage === 1}
-                className="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:bg-gray-300"
+                disabled={pagination.currentPage === 1 || isLoading}
+                className={`px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 ${isLoading || pagination.currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Previous
               </button>
               <button
                 onClick={() => handlePageChange(pagination.currentPage + 1)}
-                disabled={!pagination.hasMore}
-                className="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:bg-gray-300"
+                disabled={!pagination.hasMore || isLoading}
+                className={`px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 ${isLoading || !pagination.hasMore ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Next
               </button>

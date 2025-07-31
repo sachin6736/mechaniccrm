@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { ChevronUp, ChevronDown, Search } from 'lucide-react';
+import { PuffLoader } from 'react-spinners';
+import useApiLoading from '../hooks/useApiLoading';
+
 const API = import.meta.env.VITE_API_URL;
 
 // Custom debounce function
@@ -16,8 +19,8 @@ const debounce = (func, wait) => {
 
 const DueSales = () => {
   const navigate = useNavigate();
+  const { loading: apiLoading, withLoading } = useApiLoading();
   const [sales, setSales] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalSales: 0, hasMore: false });
@@ -26,67 +29,73 @@ const DueSales = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(null);
 
+  // Derived loading state for spinner and button/input disabling
+  const isLoading = apiLoading.checkAuth || apiLoading.fetchDueSales;
+
   // Check authentication status on mount
   useEffect(() => {
     const checkAuth = async () => {
-      try {
-        const response = await fetch(`${API}/Auth/check-auth`, {
-          method: 'GET',
-          credentials: 'include',
-        });
-        const data = await response.json();
-        if (!data.isAuthenticated) {
+      await withLoading('checkAuth', async () => {
+        try {
+          const response = await fetch(`${API}/Auth/check-auth`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          const data = await response.json();
+          if (!data.isAuthenticated) {
+            setIsAuthenticated(false);
+            toast.error('Please log in to access this page');
+            navigate('/login', { replace: true });
+          } else {
+            setIsAuthenticated(true);
+            await fetchDueSales(1);
+          }
+        } catch (err) {
+          console.error('Error checking auth:', err);
           setIsAuthenticated(false);
-          toast.error('Please log in to access this page');
+          toast.error('Authentication error');
           navigate('/login', { replace: true });
-        } else {
-          setIsAuthenticated(true);
-          fetchDueSales(1); // Fetch sales only if authenticated
         }
-      } catch (err) {
-        console.error('Error checking auth:', err);
-        setIsAuthenticated(false);
-        toast.error('Authentication error');
-        navigate('/login', { replace: true });
-      }
+      });
     };
     checkAuth();
   }, [navigate]);
 
   const fetchDueSales = async (pageNum, search = searchQuery, sort = sortField, order = sortOrder) => {
-    try {
-      setLoading(true);
-      const query = new URLSearchParams({
-        page: pageNum,
-        limit : 10,
-        ...(search && { search }),
-        sortField: sort,
-        sortOrder: order,
-      }).toString();
+    await withLoading('fetchDueSales', async () => {
+      try {
+        const query = new URLSearchParams({
+          page: pageNum,
+          limit: 10,
+          ...(search && { search }),
+          sortField: sort,
+          sortOrder: order,
+        }).toString();
 
-      const response = await fetch(`${API}/Sale/due-sales?${query}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
+        const response = await fetch(`${API}/Sale/due-sales?${query}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch due sales: ${response.status}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Due sales fetch error:', errorText, 'Status:', response.status);
+          throw new Error(`Failed to fetch due sales: ${response.status}`);
+        }
+
+        const { success, data, pagination: paginationData } = await response.json();
+        if (!success) {
+          throw new Error(data.message || 'Failed to fetch due sales data');
+        }
+
+        setSales(data);
+        setPagination(paginationData);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setError('Failed to load due sales data.');
+        toast.error('Failed to load due sales data.');
       }
-
-      const { success, data, pagination: paginationData } = await response.json();
-      if (!success) {
-        throw new Error(data.message || 'Failed to fetch due sales data');
-      }
-
-      setSales(data);
-      setPagination(paginationData);
-      setLoading(false);
-    } catch (err) {
-      setError('Failed to load due sales data.');
-      toast.error('Failed to load due sales data.');
-      setLoading(false);
-    }
+    });
   };
 
   const debouncedFetchSales = useCallback(
@@ -97,6 +106,7 @@ const DueSales = () => {
   );
 
   const handleSort = (field) => {
+    if (isLoading) return;
     const isSameField = sortField === field;
     const newSortOrder = isSameField && sortOrder === 'asc' ? 'desc' : 'asc';
     setSortField(field);
@@ -106,6 +116,7 @@ const DueSales = () => {
   };
 
   const handleSearchChange = (e) => {
+    if (isLoading) return;
     const newSearchQuery = e.target.value;
     setSearchQuery(newSearchQuery);
     setPage(1);
@@ -113,39 +124,35 @@ const DueSales = () => {
   };
 
   const handleNextPage = () => {
-    if (pagination.hasMore) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchDueSales(nextPage, searchQuery);
-    }
+    if (isLoading || !pagination.hasMore) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchDueSales(nextPage, searchQuery);
   };
 
   const handlePreviousPage = () => {
-    if (page > 1) {
-      const prevPage = page - 1;
-      setPage(prevPage);
-      fetchDueSales(prevPage, searchQuery);
-    }
+    if (isLoading || page <= 1) return;
+    const prevPage = page - 1;
+    setPage(prevPage);
+    fetchDueSales(prevPage, searchQuery);
   };
 
   const handlePageClick = (pageNum) => {
+    if (isLoading) return;
     setPage(pageNum);
     fetchDueSales(pageNum, searchQuery);
   };
 
-  const renderSkeletonLoader = () => (
-    <div className="space-y-2">
-      {[...Array(5)].map((_, index) => (
-        <div key={index} className="h-12 bg-gray-200 animate-pulse rounded-md" />
-      ))}
-    </div>
-  );
+  const handleSaleClick = (saleId) => {
+    if (isLoading) return;
+    navigate(`/sale/${saleId}`);
+  };
 
-  // Show loading state while checking authentication
-  if (isAuthenticated === null) {
+  // Show loading state while checking authentication or fetching sales
+  if (isAuthenticated === null || apiLoading.checkAuth || apiLoading.fetchDueSales) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
-        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
+        <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
       </div>
     );
   }
@@ -155,22 +162,15 @@ const DueSales = () => {
     return null;
   }
 
-  if (loading && sales.length === 0) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
-        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
         <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 shadow-sm">
           <p className="text-sm font-medium">{error}</p>
           <button
             onClick={() => navigate('/leads')}
-            className="mt-2 px-4 py-1 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700"
+            disabled={isLoading}
+            className={`mt-2 px-4 py-1 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Back to Leads
           </button>
@@ -180,13 +180,20 @@ const DueSales = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20">
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20 relative">
+      {/* Centered PuffLoader Overlay with Preferred Color and Opacity */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-10 flex justify-center items-center z-50">
+          <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Due Sales</h2>
           <button
             onClick={() => navigate('/leads')}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200"
+            disabled={isLoading}
+            className={`px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Back to Leads
           </button>
@@ -205,16 +212,15 @@ const DueSales = () => {
                 value={searchQuery}
                 onChange={handleSearchChange}
                 placeholder="Search by name, business name, email, or phone"
-                className="w-full sm:w-64 pl-10 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 text-sm bg-white shadow-sm"
+                className={`w-full sm:w-64 pl-10 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 text-sm bg-white shadow-sm ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={isLoading}
               />
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-          {loading ? (
-            <div className="p-6">{renderSkeletonLoader()}</div>
-          ) : sales.length === 0 ? (
+          {sales.length === 0 ? (
             <div className="p-6 text-center text-gray-500 text-sm font-medium">
               No due sales found.
             </div>
@@ -236,7 +242,7 @@ const DueSales = () => {
                       ].map(({ label, field }) => (
                         <th
                           key={field}
-                          className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-indigo-700 transition duration-200"
+                          className={`px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-indigo-700 transition duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                           onClick={() => handleSort(field)}
                         >
                           <div className="flex items-center">
@@ -261,11 +267,11 @@ const DueSales = () => {
                         key={sale._id}
                         className={`${
                           index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
-                        } hover:bg-indigo-100 transition duration-200 cursor-pointer`}
-                        onClick={() => navigate(`/sale/${sale._id}`)}
+                        } hover:bg-indigo-100 transition duration-200 ${isLoading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                        onClick={() => handleSaleClick(sale._id)}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                          <span className={`text-indigo-600 hover:text-indigo-800 text-sm font-medium ${isLoading ? 'pointer-events-none opacity-50' : ''}`}>
                             {sale.leadId?.name || 'Unknown'}
                           </span>
                         </td>
@@ -320,10 +326,8 @@ const DueSales = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handlePreviousPage}
-                      disabled={page === 1 || loading}
-                      className={`px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:-translate-y-0.5 ${
-                        (page === 1 || loading) ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      disabled={page === 1 || isLoading}
+                      className={`px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:-translate-y-0.5 ${isLoading || page === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       Previous
                     </button>
@@ -334,10 +338,11 @@ const DueSales = () => {
                           <button
                             key={`page-${pageNum}`}
                             onClick={() => handlePageClick(pageNum)}
+                            disabled={isLoading}
                             className={`px-3 py-1 rounded-lg text-sm font-medium ${
                               page === pageNum
                                 ? 'bg-indigo-600 text-white'
-                                : 'bg-white text-preview-indigo-600 border border-indigo-200 hover:bg-indigo-50'
+                                : `bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`
                             } transition duration-200`}
                           >
                             {pageNum}
@@ -350,10 +355,8 @@ const DueSales = () => {
                     </div>
                     <button
                       onClick={handleNextPage}
-                      disabled={!pagination.hasMore || loading}
-                      className={`px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:-translate-y-0.5 ${
-                        (!pagination.hasMore || loading) ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      disabled={!pagination.hasMore || isLoading}
+                      className={`px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:-translate-y-0.5 ${isLoading || !pagination.hasMore ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       Next
                     </button>

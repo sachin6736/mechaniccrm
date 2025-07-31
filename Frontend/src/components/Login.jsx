@@ -2,65 +2,66 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { PuffLoader } from 'react-spinners';
+import useApiLoading from '../hooks/useApiLoading';
 import logo from '../assets/logo.avif';
 import login from '../assets/login.avif';
-const API = import.meta.env.VITE_API_URL;
 
-// Fallback Spinner component
-const Spinner = ({ size = 'w-4 h-4', color = 'text-white' }) => (
-  <div
-    className={`${size} ${color} border-2 border-t-transparent rounded-full animate-spin`}
-  ></div>
-);
+const API = import.meta.env.VITE_API_URL;
 
 const Login = () => {
   const navigate = useNavigate();
+  const { loading: apiLoading, withLoading } = useApiLoading();
   const [formData, setFormData] = useState({
     name: '',
     password: '',
   });
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(null);
+
+  // Derived loading state for spinner and button/input disabling
+  const isLoading = apiLoading.checkAuth || apiLoading.login;
 
   // Check authentication status on mount
   useEffect(() => {
     const checkAuth = async () => {
-      try {
-        const response = await fetch(`${API}/Auth/check-auth`, {
-          method: 'GET',
-          credentials: 'include',
-        });
-        const data = await response.json();
-        if (data.isAuthenticated) {
-          setIsAuthenticated(true);
-          toast.info('You are already logged in');
-          navigate('/leads', { replace: true });
-        } else {
+      await withLoading('checkAuth', async () => {
+        try {
+          const response = await fetch(`${API}/Auth/check-auth`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          const data = await response.json();
+          if (data.isAuthenticated) {
+            setIsAuthenticated(true);
+            toast.info('You are already logged in');
+            navigate('/leads', { replace: true });
+          } else {
+            setIsAuthenticated(false);
+          }
+        } catch (err) {
+          console.error('Error checking auth:', err);
           setIsAuthenticated(false);
+          toast.error('Authentication check failed');
         }
-      } catch (err) {
-        console.error('Error checking auth:', err);
-        setIsAuthenticated(false);
-        toast.error('Authentication check failed');
-      }
+      });
     };
     checkAuth();
   }, [navigate]);
 
   const handleChange = (e) => {
+    if (isLoading) return;
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading) return;
     setError('');
-    setLoading(true);
 
     if (!formData.name || !formData.password) {
       setError('Name and password are required');
       toast.error('Name and password are required');
-      setLoading(false);
       return;
     }
 
@@ -69,57 +70,57 @@ const Login = () => {
     if (!nameRegex.test(formData.name)) {
       setError('Please enter a valid name (3-30 characters, letters, numbers, or underscores)');
       toast.warning('Please enter a valid name');
-      setLoading(false);
       return;
     }
 
-    try {
-      const response = await fetch(`${API}/Auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      });
-
-      const text = await response.text();
-      let data;
+    await withLoading('login', async () => {
       try {
-        data = JSON.parse(text);
-      } catch (err) {
-        throw new Error('Invalid response from server');
-      }
+        const response = await fetch(`${API}/Auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(formData),
+        });
 
-      if (!response.ok) {
-        const message = data.message || 'Login failed';
+        const text = await response.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (err) {
+          throw new Error('Invalid response from server');
+        }
+
+        if (!response.ok) {
+          const message = data.message || 'Login failed';
+          setError(message);
+          toast.error(message);
+          return;
+        }
+
+        toast.success('Login successful');
+        setIsAuthenticated(true);
+        navigate('/leads', { replace: true });
+      } catch (err) {
+        console.error('Login error:', err);
+        const message = err.message || 'Server error. Please try again later.';
         setError(message);
         toast.error(message);
-        setLoading(false);
-        return;
       }
-
-      toast.success('Login successful');
-      setIsAuthenticated(true);
-      navigate('/leads', { replace: true });
-    } catch (err) {
-      console.error('Login error:', err);
-      const message = err.message || 'Server error. Please try again later.';
-      setError(message);
-      toast.error(message);
-      setLoading(false);
-    }
+    });
   };
 
   const handleContactAdmin = () => {
+    if (isLoading) return;
     toast.info('Contact admin feature coming soon');
   };
 
   // Show loading state while checking authentication
-  if (isAuthenticated === null) {
+  if (isAuthenticated === null || apiLoading.checkAuth) {
     return (
       <div className="min-h-screen bg-gray-100 flex justify-center items-center">
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
       </div>
     );
   }
@@ -130,7 +131,13 @@ const Login = () => {
   }
 
   return (
-    <div className="flex h-screen w-full bg-gray-100">
+    <div className="flex h-screen w-full bg-gray-100 relative">
+      {/* Centered PuffLoader Overlay for Login Submission */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-10 flex justify-center items-center z-50">
+          <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
+        </div>
+      )}
       {/* Logo Section */}
       <div className="absolute top-10 left-10 flex items-center space-x-2 z-10">
         <img src={logo} alt="Zebra" className="h-8 w-8" />
@@ -162,10 +169,11 @@ const Login = () => {
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className={`w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 placeholder="username"
                 required
                 aria-label="Name"
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -177,26 +185,20 @@ const Login = () => {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className={`w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 placeholder="********"
                 required
                 aria-label="Password"
+                disabled={isLoading}
               />
             </div>
             <button
               type="submit"
-              className="w-full bg-[#4f4f51] hover:bg-black text-white py-2 rounded-lg transition duration-200 flex justify-center items-center disabled:opacity-50"
-              disabled={loading}
+              className={`w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg transition duration-200 flex justify-center items-center ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isLoading}
               aria-label="Login"
             >
-              {loading ? (
-                <>
-                  <Spinner size="w-4 h-4" color="text-white" />
-                  <span className="ml-2">Logging in...</span>
-                </>
-              ) : (
-                'Login'
-              )}
+              Login
             </button>
           </form>
         </div>
@@ -217,8 +219,9 @@ const Login = () => {
         <p className="text-sm text-gray-600">Forgot password?</p>
         <button
           type="button"
-          className="text-sm text-black hover:text-[#4f4f51] px-3 py-1 rounded"
+          className={`text-sm text-indigo-600 hover:text-indigo-700 px-3 py-1 rounded ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           onClick={handleContactAdmin}
+          disabled={isLoading}
           aria-label="Contact Admin for password reset"
         >
           Contact Admin
