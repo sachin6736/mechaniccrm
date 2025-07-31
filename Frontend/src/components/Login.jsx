@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -21,6 +21,32 @@ const Login = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${API}/Auth/check-auth`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        const data = await response.json();
+        if (data.isAuthenticated) {
+          setIsAuthenticated(true);
+          toast.info('You are already logged in');
+          navigate('/leads', { replace: true });
+        } else {
+          setIsAuthenticated(false);
+        }
+      } catch (err) {
+        console.error('Error checking auth:', err);
+        setIsAuthenticated(false);
+        toast.error('Authentication check failed');
+      }
+    };
+    checkAuth();
+  }, [navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -74,7 +100,8 @@ const Login = () => {
       }
 
       toast.success('Login successful');
-      navigate('/leads');
+      setIsAuthenticated(true);
+      navigate('/leads', { replace: true });
     } catch (err) {
       console.error('Login error:', err);
       const message = err.message || 'Server error. Please try again later.';
@@ -87,6 +114,20 @@ const Login = () => {
   const handleContactAdmin = () => {
     toast.info('Contact admin feature coming soon');
   };
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex justify-center items-center">
+        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Don't render anything if already authenticated (redirect will handle navigation)
+  if (isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="flex h-screen w-full bg-gray-100">
