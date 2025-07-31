@@ -18,7 +18,6 @@ const UserSales = () => {
     hasMore: false,
   });
   const [sort, setSort] = useState({ field: 'createdAt', order: 'desc' });
-  const [search, setSearch] = useState('');
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(''); // Default to empty (logged-in user)
 
@@ -56,7 +55,6 @@ const UserSales = () => {
           limit: 10,
           sortField: sort.field,
           sortOrder: sort.order,
-          search,
           ...(selectedUser && { userId: selectedUser }), // Add userId if selected
         });
         const response = await fetch(`${API}/Sale/user-sales?${queryParams}`, {
@@ -85,18 +83,13 @@ const UserSales = () => {
     };
 
     fetchUserSales();
-  }, [pagination.currentPage, sort.field, sort.order, search, selectedUser]);
+  }, [pagination.currentPage, sort.field, sort.order, selectedUser]);
 
   const handleSort = (field) => {
     setSort((prev) => ({
       field,
       order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc',
     }));
-  };
-
-  const handleSearch = (e) => {
-    setSearch(e.target.value);
-    setPagination((prev) => ({ ...prev, currentPage: 1 }));
   };
 
   const handlePageChange = (newPage) => {
@@ -150,13 +143,6 @@ const UserSales = () => {
                 </option>
               ))}
             </select>
-            <input
-              type="text"
-              value={search}
-              onChange={handleSearch}
-              placeholder="Search by name, email, phone, or business..."
-              className="w-full sm:w-64 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-            />
           </div>
         </div>
 
