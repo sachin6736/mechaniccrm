@@ -41,7 +41,6 @@ const Lead = () => {
   const [isEditingLead, setIsEditingLead] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [selectedDates, setSelectedDates] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showDateNoteModal, setShowDateNoteModal] = useState(false);
   const [dateNote, setDateNote] = useState('');
@@ -54,40 +53,39 @@ const Lead = () => {
   const [confirmText, setConfirmText] = useState('Confirm');
   const [isAuthenticated, setIsAuthenticated] = useState(null);
 
-  // Derived loading state for spinner and button disabling
-  const isLoading = apiLoading.saveNotes || apiLoading.saveDateNote || apiLoading.editLead || apiLoading.updateStatus;
+  // Derived loading state for spinner and button/input/link disabling
+  const isLoading = apiLoading.checkAuth || apiLoading.fetchLead || apiLoading.saveNotes || apiLoading.saveDateNote || apiLoading.editLead || apiLoading.updateStatus;
 
   // Check authentication status on mount
   useEffect(() => {
     const checkAuth = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`${API}/Auth/check-auth`, {
-          method: 'GET',
-          credentials: 'include',
-        });
-        const data = await response.json();
-        if (!data.isAuthenticated) {
-          setIsAuthenticated(false);
-          toast.error('Please log in to access this page');
-          navigate('/login', { replace: true });
-        } else {
-          setIsAuthenticated(true);
-          if (id) {
-            fetchSingleLead();
+      await withLoading('checkAuth', async () => {
+        try {
+          const response = await fetch(`${API}/Auth/check-auth`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          const data = await response.json();
+          if (!data.isAuthenticated) {
+            setIsAuthenticated(false);
+            toast.error('Please log in to access this page');
+            navigate('/login', { replace: true });
           } else {
-            toast.error('Invalid lead ID');
-            navigate('/leads', { replace: true });
+            setIsAuthenticated(true);
+            if (id) {
+              await fetchSingleLead();
+            } else {
+              toast.error('Invalid lead ID');
+              navigate('/leads', { replace: true });
+            }
           }
+        } catch (err) {
+          console.error('Error checking auth:', err);
+          setIsAuthenticated(false);
+          toast.error('Authentication error');
+          navigate('/login', { replace: true });
         }
-      } catch (err) {
-        console.error('Error checking auth:', err);
-        setIsAuthenticated(false);
-        toast.error('Authentication error');
-        navigate('/login', { replace: true });
-      } finally {
-        setLoading(false);
-      }
+      });
     };
     checkAuth();
   }, [id, navigate]);
@@ -95,7 +93,6 @@ const Lead = () => {
   const fetchSingleLead = async () => {
     await withLoading('fetchLead', async () => {
       try {
-        setLoading(true);
         console.log('Fetching lead with ID:', id);
         const response = await fetch(`${API}/Lead/getleadbyid/${id}`, {
           method: 'GET',
@@ -126,8 +123,6 @@ const Lead = () => {
         console.error('Fetch error:', err);
         setError('Failed to load lead data.');
         toast.error('Failed to load lead data.');
-      } finally {
-        setLoading(false);
       }
     });
   };
@@ -160,6 +155,7 @@ const Lead = () => {
     });
 
   const handleDateClick = (date) => {
+    if (isLoading) return;
     const dateStr = formatLocalDate(date);
     const isSelected = selectedDates.includes(dateStr);
     setSelectedDate(dateStr);
@@ -207,6 +203,7 @@ const Lead = () => {
     });
 
   const handleEditLead = () => {
+    if (isLoading) return;
     if (!editForm.name || !editForm.email || !editForm.phoneNumber || !editForm.businessName || !editForm.businessAddress) {
       toast.warning('All fields are required');
       return;
@@ -271,6 +268,7 @@ const Lead = () => {
   };
 
   const updateStatus = (leadId, newStatus) => {
+    if (isLoading) return;
     if (singleLead.disposition === newStatus) {
       toast.info('Status is already set to ' + newStatus);
       return;
@@ -317,10 +315,10 @@ const Lead = () => {
   };
 
   // Show loading state while checking authentication or fetching lead
-  if (isAuthenticated === null || loading || apiLoading.fetchLead) {
+  if (isAuthenticated === null || apiLoading.checkAuth || apiLoading.fetchLead) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center">
-        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
+        <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
       </div>
     );
   }
@@ -332,12 +330,13 @@ const Lead = () => {
 
   if (error || !singleLead) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center">
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
         <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 shadow-sm">
           <p className="text-sm font-medium">{error || 'Lead not found. Please check the lead ID or try again later.'}</p>
           <button
             onClick={() => navigate('/leads')}
-            className="mt-2 px-4 py-1 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700"
+            disabled={isLoading}
+            className={`mt-2 px-4 py-1 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Back to Leads
           </button>
@@ -347,8 +346,8 @@ const Lead = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20 relative">
-      {/* Centered PuffLoader Overlay with Reduced Opacity */}
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20 relative">
+      {/* Centered PuffLoader Overlay with Preferred Color and Opacity */}
       {isLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-10 flex justify-center items-center z-50">
           <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
@@ -364,9 +363,7 @@ const Lead = () => {
             <button
               onClick={() => navigate('/leads')}
               disabled={isLoading}
-              className={`px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200 ${
-                isLoading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+              className={`px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               Back to Leads
             </button>
@@ -380,11 +377,7 @@ const Lead = () => {
               key={index}
               onClick={() => updateStatus(singleLead._id, status)}
               disabled={isLoading}
-              className={`px-4 py-2 text-sm font-medium rounded-full transition-colors duration-200 ${
-                singleLead.disposition === status
-                  ? statusTextColors[status]
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`px-4 py-2 text-sm font-medium rounded-full transition-colors duration-200 ${singleLead.disposition === status ? statusTextColors[status] : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {status}
             </button>
@@ -403,11 +396,7 @@ const Lead = () => {
                 <button
                   onClick={() => setIsEditingLead(!isEditingLead)}
                   disabled={isLoading}
-                  className={`flex items-center gap-1 text-sm ${
-                    isEditingLead ? 'text-red-500' : 'text-indigo-500'
-                  } hover:text-indigo-600 transition-colors duration-200 ${
-                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  className={`flex items-center gap-1 text-sm ${isEditingLead ? 'text-red-500' : 'text-indigo-500'} hover:text-indigo-600 transition-colors duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {isEditingLead ? 'Cancel' : <><Edit size={16} /> Edit</>}
                 </button>
@@ -415,9 +404,7 @@ const Lead = () => {
                   <button
                     onClick={handleEditLead}
                     disabled={isLoading}
-                    className={`flex items-center gap-1 text-sm text-green-500 hover:text-green-600 transition-colors duration-200 ${
-                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`flex items-center gap-1 text-sm text-green-500 hover:text-green-600 transition-colors duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <Save size={16} /> Save
                   </button>
@@ -443,23 +430,19 @@ const Lead = () => {
                         type="text"
                         value={editForm[item.key] || ''}
                         onChange={(e) => setEditForm({ ...editForm, [item.key]: e.target.value })}
-                        className="bg-transparent border-b border-gray-300 focus:border-indigo-500 focus:outline-none text-right text-sm w-full text-gray-900 transition-colors duration-200"
+                        className={`bg-transparent border-b border-gray-300 focus:border-indigo-500 focus:outline-none text-right text-sm w-full text-gray-900 transition-colors duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         disabled={isLoading}
                       />
                     ) : item.isLink ? (
                       <a
                         href={`mailto:${singleLead[item.key]}`}
-                        className="text-sm text-indigo-500 hover:underline truncate"
+                        className={`text-sm text-indigo-500 hover:underline truncate ${isLoading ? 'pointer-events-none opacity-50' : ''}`}
                       >
                         {singleLead[item.key]}
                       </a>
                     ) : (
                       <span
-                        className={`text-sm truncate ${
-                          item.key === 'disposition'
-                            ? statusTextColors[singleLead[item.key]] || 'text-gray-900'
-                            : 'text-gray-900'
-                        }`}
+                        className={`text-sm truncate ${item.key === 'disposition' ? statusTextColors[singleLead[item.key]] || 'text-gray-900' : 'text-gray-900'}`}
                       >
                         {item.format ? item.format(singleLead[item.key]) : singleLead[item.key]}
                       </span>
@@ -512,7 +495,7 @@ const Lead = () => {
             {isEditing ? (
               <div className="mt-4">
                 <textarea
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 bg-white"
+                  className={`w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 bg-white ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   placeholder="Add a note..."
@@ -530,9 +513,7 @@ const Lead = () => {
                   <button
                     onClick={handleSaveNotes}
                     disabled={isLoading}
-                    className={`inline-flex items-center px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
-                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`inline-flex items-center px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <Save className="h-4 w-4 mr-1" /> Save
                   </button>
@@ -542,9 +523,7 @@ const Lead = () => {
               <button
                 onClick={() => setIsEditing(true)}
                 disabled={isLoading}
-                className={`inline-flex items-center mt-4 px-3 py-1 text-sm text-indigo-500 hover:text-indigo-600 ${
-                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
+                className={`inline-flex items-center mt-4 px-3 py-1 text-sm text-indigo-500 hover:text-indigo-600 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <Edit className="h-4 w-4 mr-1" /> Add Note
               </button>
@@ -581,7 +560,7 @@ const Lead = () => {
                   : `Adding date: ${selectedDate}`}
               </p>
               <textarea
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 bg-white"
+                className={`w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 bg-white ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 value={dateNote}
                 onChange={(e) => setDateNote(e.target.value)}
                 placeholder="Add an optional note..."
@@ -592,18 +571,14 @@ const Lead = () => {
                 <button
                   onClick={() => setShowDateNoteModal(false)}
                   disabled={isLoading}
-                  className={`px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 rounded-lg transition-colors duration-200 ${
-                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 rounded-lg transition-colors duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveDateNote}
                   disabled={isLoading}
-                  className={`px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200 ${
-                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <Save className="h-4 w-4 mr-1 inline" /> Save
                 </button>
@@ -623,6 +598,11 @@ const Lead = () => {
           confirmButtonProps={{
             disabled: isLoading,
             children: confirmText,
+            className: `px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`,
+          }}
+          cancelButtonProps={{
+            disabled: isLoading,
+            className: `px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 rounded-lg ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`,
           }}
         />
       </div>
