@@ -201,7 +201,7 @@ const UserSales = () => {
                   <tr
                     key={sale._id}
                     className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() => navigate(`/sale/getsalebyid/${sale._id}`)}
+                    onClick={() => navigate(`/sale/${sale._id}`)}
                   >
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {sale.saleId || 'Not set'}

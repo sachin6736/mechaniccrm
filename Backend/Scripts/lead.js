@@ -13,10 +13,10 @@ const migrateCardDetails = async () => {
     );
     console.log('Connected to MongoDB');
 
-    // Update top-level card, exp, and cvv for non-Credit Card payment methods
+    // Update top-level card, exp, cvv, and billingAddress for non-Credit Card payment methods
     const topLevelResult = await Sale.updateMany(
       { paymentMethod: { $ne: 'Credit Card' } },
-      { $set: { card: null, exp: null, cvv: null } }
+      { $set: { card: null, exp: null, cvv: null, billingAddress: null } }
     );
 
     console.log(`Updated ${topLevelResult.modifiedCount} sales with non-Credit Card payment methods at top level`);
@@ -24,7 +24,7 @@ const migrateCardDetails = async () => {
     // Update previousContracts array for non-Credit Card payment methods
     const previousContractsResult = await Sale.updateMany(
       { 'previousContracts.paymentMethod': { $ne: 'Credit Card' } },
-      { $set: { 'previousContracts.$[elem].card': null, 'previousContracts.$[elem].exp': null, 'previousContracts.$[elem].cvv': null } },
+      { $set: { 'previousContracts.$[elem].card': null, 'previousContracts.$[elem].exp': null, 'previousContracts.$[elem].cvv': null, 'previousContracts.$[elem].billingAddress': null } },
       { arrayFilters: [{ 'elem.paymentMethod': { $ne: 'Credit Card' } }] }
     );
 

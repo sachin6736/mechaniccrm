@@ -34,6 +34,7 @@ const SaleDetails = () => {
     card: '',
     exp: '',
     cvv: '',
+    billingAddress: '',
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -86,7 +87,7 @@ const SaleDetails = () => {
         if (!data.success) {
           throw new Error(data.message || 'Failed to fetch sale data');
         }
-        console.log('Fetched sale:', data.data); // Log the fetched sale data
+        console.log('Fetched sale:', data.data);
         setSale(data.data);
         setNotes(data.data.notes || []);
         setPaymentForm({
@@ -97,6 +98,7 @@ const SaleDetails = () => {
           card: '',
           exp: '',
           cvv: '',
+          billingAddress: '',
         });
         setLoading(false);
       } catch (err) {
@@ -178,7 +180,7 @@ const SaleDetails = () => {
               {
                 text: `Changed status to ${newStatus}`,
                 createdAt: new Date(),
-                createdBy: null, // Update with actual user ID if available
+                createdBy: null,
               },
             ],
           }),
@@ -200,6 +202,7 @@ const SaleDetails = () => {
             card: '',
             exp: '',
             cvv: '',
+            billingAddress: '',
           });
           setShowConfirmModal(false);
         } else {
@@ -265,6 +268,10 @@ const SaleDetails = () => {
         toast.warning('Please enter a valid CVV (3 or 4 digits)');
         return;
       }
+      if (!paymentForm.billingAddress || paymentForm.billingAddress.trim().length < 5) {
+        toast.warning('Please enter a valid billing address (minimum 5 characters)');
+        return;
+      }
     }
 
     const currentDate = new Date();
@@ -327,6 +334,7 @@ const SaleDetails = () => {
             card: sale.paymentMethod === 'Credit Card' ? sale.card : null,
             exp: sale.paymentMethod === 'Credit Card' ? sale.exp : null,
             cvv: sale.paymentMethod === 'Credit Card' ? sale.cvv : null,
+            billingAddress: sale.paymentMethod === 'Credit Card' ? sale.billingAddress : null,
             paymentDate: sale.paymentDate,
             contractEndDate: sale.contractEndDate,
             partialPayments: sale.partialPayments || [],
@@ -353,6 +361,7 @@ const SaleDetails = () => {
             card: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.card : null,
             exp: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.exp : null,
             cvv: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.cvv : null,
+            billingAddress: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.billingAddress : null,
             partialPayments: updatedPartialPayments,
             paymentDate: paymentDate.toISOString(),
             contractEndDate: newContractEndDate.toISOString(),
@@ -364,7 +373,7 @@ const SaleDetails = () => {
             notes: [
               ...(sale.notes || []),
               {
-                text: `Updated payment details: Total Amount $${parseFloat(paymentForm.totalAmount).toFixed(2)}, Payment Method: ${paymentForm.paymentMethod}, Payment Type: ${paymentForm.paymentType}, Contract Term: ${paymentForm.contractTerm} months, Contract End Date: ${newContractEndDate.toLocaleDateString()}`,
+                text: `Updated payment details: Total Amount $${parseFloat(paymentForm.totalAmount).toFixed(2)}, Payment Method: ${paymentForm.paymentMethod}, Payment Type: ${paymentForm.paymentType}, Contract Term: ${paymentForm.contractTerm} months, Contract End Date: ${newContractEndDate.toLocaleDateString()}${paymentForm.paymentMethod === 'Credit Card' ? `, Billing Address: ${paymentForm.billingAddress}` : ''}`,
                 createdAt: new Date(),
                 createdBy: null,
               },
@@ -386,6 +395,7 @@ const SaleDetails = () => {
             card: '',
             exp: '',
             cvv: '',
+            billingAddress: '',
           });
           setNotes(updatedSale.data.notes || []);
           toast.success('Payment details updated successfully');
@@ -417,6 +427,7 @@ const SaleDetails = () => {
         card: sale.paymentMethod === 'Credit Card' ? sale.card || '' : '',
         exp: sale.paymentMethod === 'Credit Card' ? sale.exp || '' : '',
         cvv: sale.paymentMethod === 'Credit Card' ? sale.cvv || '' : '',
+        billingAddress: sale.paymentMethod === 'Credit Card' ? sale.billingAddress || '' : '',
       });
     } else {
       setPaymentForm({
@@ -427,6 +438,7 @@ const SaleDetails = () => {
         card: '',
         exp: '',
         cvv: '',
+        billingAddress: '',
       });
     }
     setShowPaymentModal(true);
@@ -647,6 +659,10 @@ const SaleDetails = () => {
                   key: 'cvv',
                   format: (value) => userRole === 'admin' ? value : '***',
                 },
+                sale.paymentMethod === 'Credit Card' && {
+                  label: 'Billing Address',
+                  key: 'billingAddress',
+                },
                 {
                   label: 'Total Amount ($)',
                   key: 'totalAmount',
@@ -736,6 +752,10 @@ const SaleDetails = () => {
                             label: 'CVV',
                             key: 'cvv',
                             format: (value) => userRole === 'admin' ? value : '***',
+                          },
+                          contract.paymentMethod === 'Credit Card' && {
+                            label: 'Billing Address',
+                            key: 'billingAddress',
                           },
                           {
                             label: 'Payment Date',
@@ -856,6 +876,7 @@ const SaleDetails = () => {
                         card: e.target.value !== 'Credit Card' ? '' : paymentForm.card,
                         exp: e.target.value !== 'Credit Card' ? '' : paymentForm.exp,
                         cvv: e.target.value !== 'Credit Card' ? '' : paymentForm.cvv,
+                        billingAddress: e.target.value !== 'Credit Card' ? '' : paymentForm.billingAddress,
                       })
                     }
                     className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
@@ -875,7 +896,7 @@ const SaleDetails = () => {
                         type="text"
                         value={paymentForm.card}
                         onChange={(e) => setPaymentForm({ ...paymentForm, card: e.target.value })}
-                        className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
+                        className="mt-1 block w-full p-2 tackle border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                         placeholder="Enter full card number"
                         required
                       />
@@ -899,6 +920,17 @@ const SaleDetails = () => {
                         onChange={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value })}
                         className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                         placeholder="Enter CVV"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700">Billing Address</label>
+                      <textarea
+                        value={paymentForm.billingAddress}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, billingAddress: e.target.value })}
+                        className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
+                        placeholder="Enter billing address"
+                        rows="3"
                         required
                       />
                     </div>

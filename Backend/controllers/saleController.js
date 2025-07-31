@@ -293,7 +293,11 @@ export const updateSale = async (req, res) => {
       if (!updates.card || !updates.exp || !updates.cvv) {
         return res.status(400).json({ success: false, message: 'Card number, expiration date, and CVV are required for Credit Card payments' });
       }
+      if (!updates.billingAddress || updates.billingAddress.trim().length < 5) {
+        return res.status(400).json({ success: false, message: 'Billing address is required for Credit Card payments (minimum 5 characters)' });
+      }
     }
+
     if (updates.partialPayments) {
       for (const payment of updates.partialPayments) {
         if (!payment.amount || isNaN(payment.amount) || payment.amount <= 0) {
@@ -328,6 +332,7 @@ export const updateSale = async (req, res) => {
         card: sale.paymentMethod === 'Credit Card' ? sale.card : null,
         exp: sale.paymentMethod === 'Credit Card' ? sale.exp : null,
         cvv: sale.paymentMethod === 'Credit Card' ? sale.cvv : null,
+        billingAddress: sale.paymentMethod === 'Credit Card' ? sale.billingAddress : null,
         paymentDate: sale.paymentDate,
         contractEndDate: sale.contractEndDate,
         partialPayments: sale.partialPayments || [],
@@ -348,10 +353,10 @@ export const updateSale = async (req, res) => {
       updates.paymentMethod ||
       updates.paymentType ||
       updates.contractTerm ||
-      (updates.paymentMethod === 'Credit Card' && (updates.card || updates.exp || updates.cvv))
+      (updates.paymentMethod === 'Credit Card' && (updates.card || updates.exp || updates.cvv || updates.billingAddress))
     ) {
       sale.notes.push({
-        text: `Updated payment details: Total Amount $${parseFloat(updates.totalAmount || sale.totalAmount).toFixed(2)}, Payment Method: ${updates.paymentMethod || sale.paymentMethod || 'Not set'}, Payment Type: ${updates.paymentType || sale.paymentType || 'Not set'}, Contract Term: ${updates.contractTerm || sale.contractTerm} months, Contract End Date: ${newContractEndDate.toLocaleDateString()}`,
+        text: `Updated payment details: Total Amount $${parseFloat(updates.totalAmount || sale.totalAmount).toFixed(2)}, Payment Method: ${updates.paymentMethod || sale.paymentMethod || 'Not set'}, Payment Type: ${updates.paymentType || sale.paymentType || 'Not set'}, Contract Term: ${updates.contractTerm || sale.contractTerm} months, Contract End Date: ${newContractEndDate.toLocaleDateString()}${updates.paymentMethod === 'Credit Card' ? `, Billing Address: ${updates.billingAddress}` : ''}`,
         createdAt: new Date(),
         createdBy: userId,
       });
@@ -364,7 +369,7 @@ export const updateSale = async (req, res) => {
       sale.paymentDate = updates.paymentDate || new Date();
     }
 
-    if (updates.paymentMethod === 'Credit Card' && (updates.card || updates.exp || updates.cvv)) {
+    if (updates.paymentMethod === 'Credit Card' && (updates.card || updates.exp || updates.cvv || updates.billingAddress)) {
       sale.notes.push({
         text: 'Card details updated by user',
         createdAt: new Date(),
@@ -380,6 +385,7 @@ export const updateSale = async (req, res) => {
       card: updates.paymentMethod === 'Credit Card' ? updates.card : null,
       exp: updates.paymentMethod === 'Credit Card' ? updates.exp : null,
       cvv: updates.paymentMethod === 'Credit Card' ? updates.cvv : null,
+      billingAddress: updates.paymentMethod === 'Credit Card' ? updates.billingAddress : null,
       status: sale.status,
       partialPayments: updatedPartialPayments,
       paymentDate: sale.paymentDate,

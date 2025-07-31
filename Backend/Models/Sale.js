@@ -33,7 +33,8 @@ const saleSchema = new mongoose.Schema({
   },
   billingAddress: {
     type: String,
-    required: true,
+    required: false,
+    default: null,
   },
   card: {
     type: String,
@@ -101,6 +102,7 @@ const saleSchema = new mongoose.Schema({
     card: { type: String, default: null },
     exp: { type: String, default: null },
     cvv: { type: String, default: null },
+    billingAddress: { type: String, default: null },
     paymentDate: { type: Date },
     contractEndDate: { type: Date },
     partialPayments: [{
