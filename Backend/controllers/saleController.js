@@ -50,6 +50,7 @@ export const getAllSales = async (req, res) => {
       .limit(limit)
       .populate('leadId', 'name businessName')
       .populate('notes.createdBy', 'name email')
+      .populate('createdBy','name email')
       .lean();
 
     const totalSales = await Sale.countDocuments(query);

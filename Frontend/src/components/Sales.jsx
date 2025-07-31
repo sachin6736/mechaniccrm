@@ -55,6 +55,7 @@ const Sales = () => {
         throw new Error(data.message || 'Failed to fetch sales data');
       }
 
+      console.log('Fetched sales data:', data); // Log the sales data
       setSales(data);
       setPagination(paginationData);
       setLoading(false);
@@ -227,6 +228,7 @@ const Sales = () => {
                         { label: 'Payment Method', field: 'paymentMethod' },
                         { label: 'Status', field: 'status' },
                         { label: 'Payment Date', field: 'paymentDate' },
+                        { label: 'Sale CreatedBy', field: 'createdBy' },
                       ].map(({ label, field }) => (
                         <th
                           key={field}
@@ -302,6 +304,9 @@ const Sales = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {sale.paymentDate ? new Date(sale.paymentDate).toLocaleString() : 'Not Set'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {sale.createdBy?.name || 'N/A'}
                         </td>
                       </tr>
                     ))}

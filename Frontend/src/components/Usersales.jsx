@@ -164,7 +164,7 @@ const UserSales = () => {
                   <th
                     key={header.field}
                     scope="col"
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                    className="px-4 py-3 text-left text-xs font-medium text-white bg-[#4f46e5] uppercase tracking-wider cursor-pointer"
                     onClick={() => handleSort(header.field)}
                   >
                     <div className="flex items-center gap-1">
