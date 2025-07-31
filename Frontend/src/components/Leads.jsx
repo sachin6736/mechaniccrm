@@ -111,6 +111,7 @@ const Leads = () => {
         'Business Address': lead.businessAddress,
         Disposition: lead.disposition || 'None',
         'Created At': lead.createdAt ? new Date(lead.createdAt).toLocaleString() : 'N/A',
+        'Created By': lead.createdBy?.name || 'N/A',
         'Important Dates': lead.importantDates?.join(', ') || 'None',
         Notes: lead.notes?.map(note => note.text).join('; ') || 'None',
       }));
@@ -130,6 +131,7 @@ const Leads = () => {
         { wch: 30 }, // Business Address
         { wch: 15 }, // Disposition
         { wch: 20 }, // Created At
+        { wch: 20 }, // Created By
         { wch: 30 }, // Important Dates
         { wch: 50 }, // Notes
       ];
@@ -298,7 +300,7 @@ const Leads = () => {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+                <table className="min-w-full divide-y divide-y-2">
                   <thead className="bg-indigo-600 text-white">
                     <tr>
                       {[
@@ -308,6 +310,7 @@ const Leads = () => {
                         { label: 'Phone', field: 'phoneNumber' },
                         { label: 'Business Name', field: 'businessName' },
                         { label: 'Disposition', field: 'disposition' },
+                        { label: 'Lead CreatedBy', field: 'createdBy' },
                       ].map(({ label, field }) => (
                         <th
                           key={field}
@@ -330,7 +333,7 @@ const Leads = () => {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-y-2">
                     {leads.map((lead, index) => (
                       <tr
                         key={lead._id}
@@ -359,6 +362,7 @@ const Leads = () => {
                             {lead.disposition || 'None'}
                           </span>
                         </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">{lead.createdBy?.name || 'N/A'}</td>
                       </tr>
                     ))}
                   </tbody>
