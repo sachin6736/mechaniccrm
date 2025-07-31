@@ -453,10 +453,91 @@ export const editStatus = async (req, res) => {
 
 export const getLeadsForDownload = async (req, res) => {
   try {
-    const leads = await Lead.find({})
+    const { startDate, endDate, startLeadId, endLeadId, all, downloadType, limit } = req.query;
+
+    // Build query
+    const query = {};
+
+    if (all !== 'true' && downloadType !== 'latest' && downloadType !== 'oldest') {
+      // Date range filter
+      if (startDate || endDate) {
+        if (!startDate || !endDate) {
+          return res.status(400).json({
+            success: false,
+            message: 'Both startDate and endDate are required for date range filtering',
+          });
+        }
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          return res.status(400).json({ success: false, message: 'Invalid date format' });
+        }
+        if (start > end) {
+          return res.status(400).json({ success: false, message: 'startDate must be before endDate' });
+        }
+        query.createdAt = { $gte: start, $lte: end };
+      }
+
+      // Lead ID range filter
+      if (startLeadId || endLeadId) {
+        if (!startLeadId || !endLeadId) {
+          return res.status(400).json({
+            success: false,
+            message: 'Both startLeadId and endLeadId are required for lead ID range filtering',
+          });
+        }
+        const startId = parseInt(startLeadId);
+        const endId = parseInt(endLeadId);
+        if (isNaN(startId) || isNaN(endId)) {
+          return res.status(400).json({ success: false, message: 'Lead IDs must be valid numbers' });
+        }
+        if (startId > endId) {
+          return res.status(400).json({
+            success: false,
+            message: 'startLeadId must be less than endLeadId',
+          });
+        }
+        query.leadId = { $gte: startId, $lte: endId };
+      }
+
+      // Prevent empty query (no filters provided)
+      if (Object.keys(query).length === 0 && !startDate && !startLeadId) {
+        return res.status(400).json({
+          success: false,
+          message: 'At least one valid filter (date range or lead ID range) must be provided unless downloading all leads',
+        });
+      }
+    }
+
+    // Handle latest/oldest leads
+    let sortOption = {};
+    if (downloadType === 'latest') {
+      sortOption = { createdAt: -1 }; // Sort descending for latest
+    } else if (downloadType === 'oldest') {
+      sortOption = { createdAt: 1 }; // Sort ascending for oldest
+    }
+
+    // Validate limit for latest/oldest
+    let limitValue = parseInt(limit) || 10;
+    if ((downloadType === 'latest' || downloadType === 'oldest') && (isNaN(limitValue) || limitValue <= 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid positive number of leads is required for latest/oldest options',
+      });
+    }
+
+    console.log('Fetching leads for download with query:', query, 'sort:', sortOption, 'limit:', limitValue);
+
+    const leads = await Lead.find(query)
+      .sort(sortOption)
+      .limit(downloadType === 'latest' || downloadType === 'oldest' ? limitValue : undefined)
       .populate('notes.createdBy', 'name email')
       .populate('createdBy', 'name email')
       .lean();
+
+    if (leads.length === 0) {
+      return res.status(404).json({ success: false, message: 'No leads found for the provided criteria' });
+    }
 
     res.status(200).json({
       success: true,
