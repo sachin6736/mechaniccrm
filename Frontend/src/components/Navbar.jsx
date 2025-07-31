@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, X, LogOut, Users, PlusCircle, DollarSign, Calendar } from 'lucide-react';
+import { Menu, X, LogOut, Users, List, UserPlus, ShoppingCart, UserCheck, FileText, Clock, User } from 'lucide-react';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -15,6 +15,7 @@ const Navbar = () => {
   const [userName, setUserName] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   // Capitalize role for display
   const formatRole = (role) => {
@@ -95,7 +96,7 @@ const Navbar = () => {
       : []),
     {
       label: 'View Leads',
-      icon: <Users className="h-6 w-6 text-indigo-600" />,
+      icon: <List className="h-6 w-6 text-indigo-600" />,
       onClick: () => {
         if (loading) return;
         navigate('/leads');
@@ -103,8 +104,8 @@ const Navbar = () => {
       },
     },
     {
-      label: 'Create Leads',
-      icon: <PlusCircle className="h-6 w-6 text-indigo-600" />,
+      label: 'Create Lead',
+      icon: <UserPlus className="h-6 w-6 text-indigo-600" />,
       onClick: () => {
         if (loading) return;
         navigate('/AddLead');
@@ -113,7 +114,7 @@ const Navbar = () => {
     },
     {
       label: 'View Sales',
-      icon: <DollarSign className="h-6 w-6 text-indigo-600" />,
+      icon: <ShoppingCart className="h-6 w-6 text-indigo-600" />,
       onClick: () => {
         if (loading) return;
         navigate('/sales');
@@ -122,7 +123,7 @@ const Navbar = () => {
     },
     {
       label: 'My Sales',
-      icon: <DollarSign className="h-6 w-6 text-indigo-600" />,
+      icon: <UserCheck className="h-6 w-6 text-indigo-600" />,
       onClick: () => {
         if (loading) return;
         navigate('/user-sales');
@@ -131,7 +132,7 @@ const Navbar = () => {
     },
     {
       label: 'Orders',
-      icon: <DollarSign className="h-6 w-6 text-indigo-600" />,
+      icon: <FileText className="h-6 w-6 text-indigo-600" />,
       onClick: () => {
         if (loading) return;
         navigate('/completed-sales');
@@ -140,7 +141,7 @@ const Navbar = () => {
     },
     {
       label: 'Dues',
-      icon: <Calendar className="h-6 w-6 text-indigo-600" />,
+      icon: <Clock className="h-6 w-6 text-indigo-600" />,
       onClick: () => {
         if (loading) return;
         navigate('/due-sales');
@@ -172,17 +173,18 @@ const Navbar = () => {
         </div>
       )}
       {/* Desktop Sidebar */}
-      <div className="hidden md:flex w-20 h-screen bg-white shadow-lg fixed left-0 top-0 flex-col items-center pt-4 space-y-4 z-50">
+      <div className="hidden md:flex w-20 h-screen bg-white shadow-lg fixed left-0 top-0 flex-col items-center pt-6 space-y-6 z-50">
         {navItems.map((item, index) => (
           <div
             key={index}
-            className={`flex flex-col items-center space-y-2 cursor-pointer group ${loading ? 'opacity-50 pointer-events-none' : ''}`}
+            className={`flex flex-col items-center space-y-2 cursor-pointer group ${loading ? 'opacity-50 pointer-events-none' : 'hover:scale-105 transition-transform duration-200'}`}
             onClick={item.onClick}
+            title={item.label}
           >
-            <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center transition duration-300 group-hover:bg-indigo-100 group-hover:shadow-md">
+            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center transition duration-300 group-hover:bg-indigo-100 group-hover:shadow-lg">
               {item.icon}
             </div>
-            <span className="text-indigo-600 text-xs font-medium text-center group-hover:font-bold">
+            <span className="text-indigo-600 text-xs font-medium text-center group-hover:font-bold group-hover:text-indigo-700 transition duration-300">
               {item.label}
             </span>
           </div>
@@ -190,51 +192,68 @@ const Navbar = () => {
       </div>
 
       {/* Desktop Header */}
-      <div className="hidden md:flex w-full h-16 bg-indigo-600 text-white fixed top-0 left-0 pl-20 items-center justify-end px-4 shadow-md z-40">
-        <div className="flex items-center space-x-4">
-          <span className="text-white">{userName}</span>{' '}
-          <span className="text-green-500">({formatRole(userRole)})</span>
-          <button
-            onClick={confirmLogout}
-            className={`w-8 h-8 bg-white text-indigo-600 rounded-full flex items-center justify-center shadow-md ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={loading}
-            title="Log Out"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
+      <div className="hidden md:flex w-full h-16 bg-indigo-600 text-white fixed top-0 left-0 pl-20 items-center justify-end px-6 shadow-lg z-40">
+        <div
+          className="relative flex items-center space-x-3 cursor-pointer"
+          onClick={() => !loading && setShowUserDropdown(!showUserDropdown)}
+        >
+          <div className="w-10 h-10 bg-white text-indigo-600 rounded-full flex items-center justify-center shadow-md transition duration-300 hover:bg-indigo-50">
+            <User className="w-6 h-6" />
+          </div>
+          {showUserDropdown && (
+            <div className="absolute top-12 right-0 bg-white rounded-lg shadow-xl p-4 w-48 z-50 border border-gray-200">
+              <p className="text-sm font-medium text-gray-900">{userName}</p>
+              <p className="text-sm text-green-600">{formatRole(userRole)}</p>
+              <button
+                onClick={confirmLogout}
+                className={`mt-3 w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition duration-200 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={loading}
+              >
+                Log Out
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Mobile Header */}
-      <div className="md:hidden w-full h-16 bg-indigo-600 text-white fixed top-0 left-0 flex items-center justify-between px-4 z-40">
+      <div className="md:hidden w-full h-16 bg-indigo-600 text-white fixed top-0 left-0 flex items-center justify-between px-4 z-40 shadow-lg">
         <button
-          className={`text-white ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`text-white ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110 transition-transform duration-200'}`}
           onClick={() => !loading && setShowSidebar(true)}
           disabled={loading}
         >
           <Menu className="w-8 h-8" />
         </button>
-        <div className="flex items-center space-x-4">
-          <div className="text-sm font-semibold text-white truncate max-w-[120px]">
-            {userName} {formatRole(userRole)}
+        <div
+          className="relative flex items-center space-x-3 cursor-pointer"
+          onClick={() => !loading && setShowUserDropdown(!showUserDropdown)}
+        >
+          <div className="w-10 h-10 bg-white text-indigo-600 rounded-full flex items-center justify-center shadow-md transition duration-300 hover:bg-indigo-50">
+            <User className="w-6 h-6" />
           </div>
-          <button
-            onClick={confirmLogout}
-            className={`w-8 h-8 bg-white text-indigo-600 rounded-full flex items-center justify-center shadow-md ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={loading}
-            title="Log Out"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
+          {showUserDropdown && (
+            <div className="absolute top-12 right-0 bg-white rounded-lg shadow-xl p-4 w-48 z-50 border border-gray-200">
+              <p className="text-sm font-medium text-gray-900">{userName}</p>
+              <p className="text-sm text-green-600">{formatRole(userRole)}</p>
+              <button
+                onClick={confirmLogout}
+                className={`mt-3 w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition duration-200 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={loading}
+              >
+                Log Out
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Mobile Sidebar */}
       {showSidebar && (
-        <div className="md:hidden fixed inset-0 bg-indigo-600 text-white z-50 flex flex-col items-center pt-8 space-y-6">
+        <div className="md:hidden fixed inset-0 bg-indigo-600 text-white z-50 flex flex-col pt-8 space-y-6 transform transition-transform duration-300 ease-in-out translate-x-0">
           <button
             onClick={() => !loading && setShowSidebar(false)}
-            className={`absolute top-4 right-4 text-white ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`absolute top-4 right-4 text-white ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110 transition-transform duration-200'}`}
             disabled={loading}
           >
             <X className="w-8 h-8" />
@@ -242,7 +261,7 @@ const Navbar = () => {
           {navItems.map((item, index) => (
             <div
               key={index}
-              className={`flex items-center space-x-4 cursor-pointer ${loading ? 'opacity-50 pointer-events-none' : ''}`}
+              className={`flex items-center space-x-4 cursor-pointer px-6 py-2 rounded-lg ${loading ? 'opacity-50 pointer-events-none' : 'hover:bg-indigo-700 transition duration-300'}`}
               onClick={item.onClick}
             >
               <div className="w-10 h-10 flex items-center justify-center bg-indigo-100 rounded-lg">
@@ -254,7 +273,7 @@ const Navbar = () => {
             </div>
           ))}
           <div
-            className={`flex items-center space-x-4 cursor-pointer ${loading ? 'opacity-50 pointer-events-none' : ''}`}
+            className={`flex items-center space-x-4 cursor-pointer px-6 py-2 rounded-lg ${loading ? 'opacity-50 pointer-events-none' : 'hover:bg-indigo-700 transition duration-300'}`}
             onClick={confirmLogout}
           >
             <div className="w-10 h-10 flex items-center justify-center bg-indigo-100 rounded-lg">
