@@ -16,6 +16,7 @@ const debounce = (func, wait) => {
 };
 
 const Leads = () => {
+  const navigate = useNavigate();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -25,7 +26,34 @@ const Leads = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalLeads: 0, hasMore: false });
-  const navigate = useNavigate();
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${API}/Auth/check-auth`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        const data = await response.json();
+        if (!data.isAuthenticated) {
+          setIsAuthenticated(false);
+          toast.error('Please log in to access this page');
+          navigate('/login', { replace: true });
+        } else {
+          setIsAuthenticated(true);
+          fetchLeads(1);
+        }
+      } catch (err) {
+        console.error('Error checking auth:', err);
+        setIsAuthenticated(false);
+        toast.error('Authentication error');
+        navigate('/login', { replace: true });
+      }
+    };
+    checkAuth();
+  }, [navigate]);
 
   const fetchLeads = async (pageNum, disposition = filterDisposition, search = searchQuery, sort = sortField, order = sortOrder) => {
     try {
@@ -125,10 +153,6 @@ const Leads = () => {
     []
   );
 
-  useEffect(() => {
-    fetchLeads(1);
-  }, []);
-
   const handleSort = (field) => {
     const isSameField = sortField === field;
     const newSortOrder = isSameField && sortOrder === 'asc' ? 'desc' : 'asc';
@@ -184,6 +208,20 @@ const Leads = () => {
       ))}
     </div>
   );
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated (redirect will handle navigation)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 pt-24 md:pl-20">
@@ -245,7 +283,7 @@ const Leads = () => {
               className="w-full sm:w-64 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 text-sm bg-white shadow-sm"
             >
               <option value="">All Dispositions</option>
-              <option value="Not interested">Not interested</option>
+              <option value="Not Interested">Not Interested</option>
               <option value="Follow up">Follow up</option>
               <option value="Sale">Sale</option>
             </select>
@@ -316,7 +354,7 @@ const Leads = () => {
                                 ? 'bg-green-100 text-green-800'
                                 : lead.disposition === 'Follow up'
                                 ? 'bg-yellow-100 text-yellow-800'
-                                : lead.disposition === 'Not interested'
+                                : lead.disposition === 'Not Interested'
                                 ? 'bg-red-100 text-red-800'
                                 : 'bg-gray-100 text-gray-800'
                             }`}

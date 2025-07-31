@@ -44,85 +44,79 @@ const SaleDetails = () => {
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmText, setConfirmText] = useState('Confirm');
   const [userRole, setUserRole] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
 
+  // Check authentication status on mount
   useEffect(() => {
-    const fetchUserRole = async () => {
+    const checkAuth = async () => {
       try {
         const response = await fetch(`${API}/Auth/check-auth`, {
           method: 'GET',
           credentials: 'include',
         });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setUserRole(data.user.role);
-          } else {
-            console.error('Failed to fetch user role:', data.message);
-            toast.error('Failed to authenticate user');
-          }
-        } else {
-          console.error('Auth check failed:', response.status);
-          toast.error('Authentication check failed');
-        }
-      } catch (err) {
-        console.error('Error fetching user role:', err);
-        toast.error('Error checking authentication');
-      }
-    };
-
-    const fetchSale = async () => {
-      try {
-        setLoading(true);
-        console.log('Fetching sale with ID:', id);
-        const response = await fetch(`${API}/sale/getsalebyid/${id}`, {
-          method: 'GET',
-          credentials: 'include',
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Sale fetch error:', errorText, 'Status:', response.status);
-          throw new Error(`Failed to fetch sale: ${response.status}`);
-        }
         const data = await response.json();
-        if (!data.success) {
-          throw new Error(data.message || 'Failed to fetch sale data');
+        if (!data.isAuthenticated) {
+          setIsAuthenticated(false);
+          toast.error('Please log in to access this page');
+          navigate('/login', { replace: true });
+        } else {
+          setIsAuthenticated(true);
+          setUserRole(data.user.role);
+          if (id) {
+            fetchSale();
+          } else {
+            toast.error('Invalid sale ID');
+            navigate('/sale/sales', { replace: true });
+          }
         }
-        console.log('Fetched sale:', data.data);
-        setSale(data.data);
-        setNotes(data.data.notes || []);
-        setPaymentForm({
-          totalAmount: '',
-          paymentMethod: '',
-          paymentType: '',
-          contractTerm: '',
-          card: '',
-          exp: '',
-          cvv: '',
-          billingAddress: '',
-        });
-        setLoading(false);
       } catch (err) {
-        console.error('Fetch error:', err);
-        setError('Failed to load sale data.');
-        toast.error('Failed to load sale data.');
-        setLoading(false);
+        console.error('Error checking auth:', err);
+        setIsAuthenticated(false);
+        toast.error('Authentication error');
+        navigate('/login', { replace: true });
       }
     };
-
-    if (id) {
-      fetchUserRole();
-      fetchSale();
-    } else {
-      toast.error('Invalid sale ID');
-      navigate('/sale/sales');
-    }
+    checkAuth();
   }, [id, navigate]);
 
-  useEffect(() => {
-    if (userRole !== null) {
-      console.log('UserRole:', userRole);
+  const fetchSale = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching sale with ID:', id);
+      const response = await fetch(`${API}/sale/getsalebyid/${id}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Sale fetch error:', errorText, 'Status:', response.status);
+        throw new Error(`Failed to fetch sale: ${response.status}`);
+      }
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to fetch sale data');
+      }
+      console.log('Fetched sale:', data.data);
+      setSale(data.data);
+      setNotes(data.data.notes || []);
+      setPaymentForm({
+        totalAmount: '',
+        paymentMethod: '',
+        paymentType: '',
+        contractTerm: '',
+        card: '',
+        exp: '',
+        cvv: '',
+        billingAddress: '',
+      });
+      setLoading(false);
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setError('Failed to load sale data.');
+      toast.error('Failed to load sale data.');
+      setLoading(false);
     }
-  }, [userRole]);
+  };
 
   const handleSaveNotes = async () => {
     if (!newNote.trim()) {
@@ -443,6 +437,20 @@ const SaleDetails = () => {
     }
     setShowPaymentModal(true);
   };
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center px-4 sm:px-6 md:pl-24 md:pt-20">
+        <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated (redirect will handle navigation)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (loading) {
     return (
@@ -896,7 +904,7 @@ const SaleDetails = () => {
                         type="text"
                         value={paymentForm.card}
                         onChange={(e) => setPaymentForm({ ...paymentForm, card: e.target.value })}
-                        className="mt-1 block w-full p-2 tackle border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
+                        className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                         placeholder="Enter full card number"
                         required
                       />

@@ -20,33 +20,57 @@ const UserSales = () => {
   const [sort, setSort] = useState({ field: 'createdAt', order: 'desc' });
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(''); // Default to empty (logged-in user)
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
 
-  // Fetch users list for dropdown
+  // Check authentication status and fetch users on mount
   useEffect(() => {
-    const fetchUsers = async () => {
+    const checkAuth = async () => {
       try {
-        const response = await fetch(`${API}/Auth/allusers`, {
+        const response = await fetch(`${API}/Auth/check-auth`, {
           method: 'GET',
           credentials: 'include',
         });
-        if (!response.ok) throw new Error('Failed to fetch users');
         const data = await response.json();
-        if (data.success) {
-          setUsers(data.data);
+        if (!data.isAuthenticated) {
+          setIsAuthenticated(false);
+          toast.error('Please log in to access this page');
+          navigate('/login', { replace: true });
         } else {
-          throw new Error(data.message || 'Failed to fetch users');
+          setIsAuthenticated(true);
+          fetchUsers();
         }
       } catch (err) {
-        console.error('Error fetching users:', err);
-        toast.error('Failed to load user list.');
+        console.error('Error checking auth:', err);
+        setIsAuthenticated(false);
+        toast.error('Authentication error');
+        navigate('/login', { replace: true });
       }
     };
+    checkAuth();
+  }, [navigate]);
 
-    fetchUsers();
-  }, []);
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch(`${API}/Auth/allusers`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch users');
+      const data = await response.json();
+      if (data.success) {
+        setUsers(data.data);
+      } else {
+        throw new Error(data.message || 'Failed to fetch users');
+      }
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      toast.error('Failed to load user list.');
+    }
+  };
 
   // Fetch sales based on selected user
   useEffect(() => {
+    if (!isAuthenticated) return; // Skip fetching if not authenticated
     const fetchUserSales = async () => {
       try {
         setLoading(true);
@@ -83,7 +107,7 @@ const UserSales = () => {
     };
 
     fetchUserSales();
-  }, [pagination.currentPage, sort.field, sort.order, selectedUser]);
+  }, [isAuthenticated, pagination.currentPage, sort.field, sort.order, selectedUser]);
 
   const handleSort = (field) => {
     setSort((prev) => ({
@@ -100,6 +124,20 @@ const UserSales = () => {
     setSelectedUser(e.target.value);
     setPagination((prev) => ({ ...prev, currentPage: 1 }));
   };
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center px-4 sm:px-6 md:pl-24 md:pt-20">
+        <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated (redirect will handle navigation)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (loading) {
     return (
