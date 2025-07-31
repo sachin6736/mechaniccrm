@@ -5,7 +5,10 @@ import 'react-toastify/dist/ReactToastify.css';
 import { Edit, Save } from 'lucide-react';
 import Calendar from 'react-calendar';
 import ConfirmationModal from '../components/ConfirmationModal';
+import useApiLoading from '../hooks/useApiLoading';
+import { PuffLoader } from 'react-spinners';
 import 'react-calendar/dist/Calendar.css';
+
 const API = import.meta.env.VITE_API_URL;
 
 const statusOptions = [
@@ -30,6 +33,7 @@ const statusTextColors = {
 const Lead = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { loading: apiLoading, withLoading } = useApiLoading();
   const [singleLead, setSingleLead] = useState(null);
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
@@ -50,10 +54,14 @@ const Lead = () => {
   const [confirmText, setConfirmText] = useState('Confirm');
   const [isAuthenticated, setIsAuthenticated] = useState(null);
 
+  // Derived loading state for spinner and button disabling
+  const isLoading = apiLoading.saveNotes || apiLoading.saveDateNote || apiLoading.editLead || apiLoading.updateStatus;
+
   // Check authentication status on mount
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        setLoading(true);
         const response = await fetch(`${API}/Auth/check-auth`, {
           method: 'GET',
           credentials: 'include',
@@ -77,83 +85,79 @@ const Lead = () => {
         setIsAuthenticated(false);
         toast.error('Authentication error');
         navigate('/login', { replace: true });
+      } finally {
+        setLoading(false);
       }
     };
     checkAuth();
   }, [id, navigate]);
 
   const fetchSingleLead = async () => {
-    try {
-      setLoading(true);
-      console.log('Fetching lead with ID:', id);
-      const response = await fetch(`${API}/Lead/getleadbyid/${id}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Response error:', errorText);
-        throw new Error(`Failed to fetch lead: ${response.status}`);
+    await withLoading('fetchLead', async () => {
+      try {
+        setLoading(true);
+        console.log('Fetching lead with ID:', id);
+        const response = await fetch(`${API}/Lead/getleadbyid/${id}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Response error:', errorText);
+          throw new Error(`Failed to fetch lead: ${response.status}`);
+        }
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.message || 'Failed to fetch lead data');
+        }
+        console.log('Fetched single lead:', data.data);
+        setSingleLead(data.data);
+        setNotes(data.data.notes || []);
+        setSelectedDates(data.data.importantDates || []);
+        setEditForm({
+          name: data.data.name || '',
+          email: data.data.email || '',
+          phoneNumber: data.data.phoneNumber || '',
+          businessName: data.data.businessName || '',
+          businessAddress: data.data.businessAddress || '',
+          disposition: data.data.disposition || '',
+        });
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setError('Failed to load lead data.');
+        toast.error('Failed to load lead data.');
+      } finally {
+        setLoading(false);
       }
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to fetch lead data');
-      }
-      console.log('Fetched single lead:', data.data);
-      setSingleLead(data.data);
-      setNotes(data.data.notes || []);
-      setSelectedDates(data.data.importantDates || []);
-      setEditForm({
-        name: data.data.name || '',
-        email: data.data.email || '',
-        phoneNumber: data.data.phoneNumber || '',
-        businessName: data.data.businessName || '',
-        businessAddress: data.data.businessAddress || '',
-        disposition: data.data.disposition || '',
-      });
-      setLoading(false);
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setError('Failed to load lead data.');
-      toast.error('Failed to load lead data.');
-      setLoading(false);
-    }
+    });
   };
 
-  const handleSaveNotes = async () => {
-    if (!newNote.trim()) {
-      toast.warning('Please enter a note');
-      return;
-    }
-
-    try {
+  const handleSaveNotes = () =>
+    withLoading('saveNotes', async () => {
+      if (!newNote.trim()) {
+        throw new Error('Please enter a note');
+      }
       const response = await fetch(`${API}/Lead/updateNotes/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ text: newNote }),
       });
-
-      if (response.ok) {
-        const updatedLead = await response.json();
-        if (!updatedLead.success) {
-          throw new Error(updatedLead.message || 'Failed to add note');
-        }
-        setSingleLead(updatedLead.data);
-        setNotes(updatedLead.data.notes || []);
-        toast.success('Note added successfully');
-        setNewNote('');
-        setIsEditing(false);
-      } else {
+      if (!response.ok) {
         const errorData = await response.json();
-        console.error('Failed to add note:', errorData.message);
-        toast.error(errorData.message || 'Failed to add note');
+        throw new Error(errorData.message || 'Failed to add note');
       }
-    } catch (error) {
-      console.error('Error adding note:', error);
-      toast.error('Error adding note');
-    }
-  };
+      const updatedLead = await response.json();
+      if (!updatedLead.success) {
+        throw new Error(updatedLead.message || 'Failed to add note');
+      }
+      setSingleLead(updatedLead.data);
+      setNotes(updatedLead.data.notes || []);
+      toast.success('Note added successfully');
+      setNewNote('');
+      setIsEditing(false);
+      return updatedLead;
+    });
 
   const handleDateClick = (date) => {
     const dateStr = formatLocalDate(date);
@@ -164,52 +168,43 @@ const Lead = () => {
     setShowDateNoteModal(true);
   };
 
-  const handleSaveDateNote = async () => {
-    if (!selectedDate) {
-      toast.error('No date selected');
-      return;
-    }
-
-    const updatedDates = isDateSelected
-      ? selectedDates.filter((d) => d !== selectedDate)
-      : [...selectedDates, selectedDate];
-    const autoNote = isDateSelected
-      ? `Removed important date: ${selectedDate}`
-      : `Added important date: ${selectedDate}`;
-    const noteText = dateNote.trim()
-      ? `${autoNote}. Custom note: ${dateNote}`
-      : autoNote;
-
-    try {
+  const handleSaveDateNote = () =>
+    withLoading('saveDateNote', async () => {
+      if (!selectedDate) {
+        throw new Error('No date selected');
+      }
+      const updatedDates = isDateSelected
+        ? selectedDates.filter((d) => d !== selectedDate)
+        : [...selectedDates, selectedDate];
+      const autoNote = isDateSelected
+        ? `Removed important date: ${selectedDate}`
+        : `Added important date: ${selectedDate}`;
+      const noteText = dateNote.trim()
+        ? `${autoNote}. Custom note: ${dateNote}`
+        : autoNote;
       const response = await fetch(`${API}/Lead/updateDates/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ importantDates: updatedDates, noteText }),
       });
-
-      if (response.ok) {
-        const updatedLead = await response.json();
-        if (!updatedLead.success) {
-          throw new Error(updatedLead.message || 'Failed to update date');
-        }
-        setSingleLead(updatedLead.data);
-        setNotes(updatedLead.data.notes || []);
-        setSelectedDates(updatedLead.data.importantDates || []);
-        toast.success('Date updated successfully');
-        setShowDateNoteModal(false);
-        setDateNote('');
-        setSelectedDate(null);
-      } else {
+      if (!response.ok) {
         const errorData = await response.json();
-        console.error('Failed to update date:', errorData.message);
-        toast.error(errorData.message || 'Failed to update date');
+        throw new Error(errorData.message || 'Failed to update date');
       }
-    } catch (error) {
-      console.error('Error updating date:', error);
-      toast.error('Error updating date');
-    }
-  };
+      const updatedLead = await response.json();
+      if (!updatedLead.success) {
+        throw new Error(updatedLead.message || 'Failed to update date');
+      }
+      setSingleLead(updatedLead.data);
+      setNotes(updatedLead.data.notes || []);
+      setSelectedDates(updatedLead.data.importantDates || []);
+      toast.success('Date updated successfully');
+      setShowDateNoteModal(false);
+      setDateNote('');
+      setSelectedDate(null);
+      return updatedLead;
+    });
 
   const handleEditLead = () => {
     if (!editForm.name || !editForm.email || !editForm.phoneNumber || !editForm.businessName || !editForm.businessAddress) {
@@ -241,41 +236,36 @@ const Lead = () => {
     setConfirmMessage('Are you sure you want to save changes to this lead?');
     setConfirmText('Save Changes');
     setConfirmAction(() => async () => {
-      try {
+      await withLoading('editLead', async () => {
         const response = await fetch(`${API}/Lead/editlead/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify(editForm),
         });
-
-        if (response.ok) {
-          const updatedLead = await response.json();
-          if (!updatedLead.success) {
-            throw new Error(updatedLead.message || 'Failed to update lead');
-          }
-          setSingleLead(updatedLead.data);
-          setNotes(updatedLead.data.notes || []);
-          setEditForm({
-            name: updatedLead.data.name || '',
-            email: updatedLead.data.email || '',
-            phoneNumber: updatedLead.data.phoneNumber || '',
-            businessName: updatedLead.data.businessName || '',
-            businessAddress: updatedLead.data.businessAddress || '',
-            disposition: updatedLead.data.disposition || '',
-          });
-          setIsEditingLead(false);
-          toast.success('Lead updated successfully');
-          setShowConfirmModal(false);
-        } else {
+        if (!response.ok) {
           const errorData = await response.json();
-          console.error('Failed to update lead:', errorData.message);
-          toast.error(errorData.message || 'Failed to update lead');
+          throw new Error(errorData.message || 'Failed to update lead');
         }
-      } catch (error) {
-        console.error('Error updating lead:', error);
-        toast.error('Error updating lead');
-      }
+        const updatedLead = await response.json();
+        if (!updatedLead.success) {
+          throw new Error(updatedLead.message || 'Failed to update lead');
+        }
+        setSingleLead(updatedLead.data);
+        setNotes(updatedLead.data.notes || []);
+        setEditForm({
+          name: updatedLead.data.name || '',
+          email: updatedLead.data.email || '',
+          phoneNumber: updatedLead.data.phoneNumber || '',
+          businessName: updatedLead.data.businessName || '',
+          businessAddress: updatedLead.data.businessAddress || '',
+          disposition: updatedLead.data.disposition || '',
+        });
+        setIsEditingLead(false);
+        toast.success('Lead updated successfully');
+        setShowConfirmModal(false);
+        return updatedLead;
+      });
     });
     setShowConfirmModal(true);
   };
@@ -289,50 +279,45 @@ const Lead = () => {
     setConfirmMessage(`Are you sure you want to change the status from "${singleLead.disposition || 'None'}" to "${newStatus}"?`);
     setConfirmText('Change Status');
     setConfirmAction(() => async () => {
-      try {
+      await withLoading('updateStatus', async () => {
         const response = await fetch(`${API}/Lead/editstatus/${leadId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ disposition: newStatus }),
         });
-
-        if (response.ok) {
-          const updatedLead = await response.json();
-          if (!updatedLead.success) {
-            throw new Error(updatedLead.message || 'Failed to update status');
-          }
-          setSingleLead(updatedLead.data);
-          setNotes(updatedLead.data.notes || []);
-          setSelectedDates(updatedLead.data.importantDates || []);
-          setEditForm({
-            name: updatedLead.data.name || '',
-            email: updatedLead.data.email || '',
-            phoneNumber: updatedLead.data.phoneNumber || '',
-            businessName: updatedLead.data.businessName || '',
-            businessAddress: updatedLead.data.businessAddress || '',
-            disposition: updatedLead.data.disposition || '',
-          });
-          if (newStatus === 'Sale') {
-            toast.success('Draft sale created. Please complete payment details on the Sales page.');
-          }
-          toast.success('Status changed successfully');
-          setShowConfirmModal(false);
-        } else {
+        if (!response.ok) {
           const errorData = await response.json();
-          console.error('Failed to update status:', errorData.message);
-          toast.error(errorData.message || 'Failed to update status');
+          throw new Error(errorData.message || 'Failed to update status');
         }
-      } catch (error) {
-        console.error('Error updating lead status:', error);
-        toast.error('Error updating lead status');
-      }
+        const updatedLead = await response.json();
+        if (!updatedLead.success) {
+          throw new Error(updatedLead.message || 'Failed to update status');
+        }
+        setSingleLead(updatedLead.data);
+        setNotes(updatedLead.data.notes || []);
+        setSelectedDates(updatedLead.data.importantDates || []);
+        setEditForm({
+          name: updatedLead.data.name || '',
+          email: updatedLead.data.email || '',
+          phoneNumber: updatedLead.data.phoneNumber || '',
+          businessName: updatedLead.data.businessName || '',
+          businessAddress: updatedLead.data.businessAddress || '',
+          disposition: updatedLead.data.disposition || '',
+        });
+        if (newStatus === 'Sale') {
+          toast.success('Draft sale created. Please complete payment details on the Sales page.');
+        }
+        toast.success('Status changed successfully');
+        setShowConfirmModal(false);
+        return updatedLead;
+      });
     });
     setShowConfirmModal(true);
   };
 
-  // Show loading state while checking authentication
-  if (isAuthenticated === null) {
+  // Show loading state while checking authentication or fetching lead
+  if (isAuthenticated === null || loading || apiLoading.fetchLead) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center">
         <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
@@ -343,14 +328,6 @@ const Lead = () => {
   // Don't render anything if not authenticated (redirect will handle navigation)
   if (!isAuthenticated) {
     return null;
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center">
-        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
   }
 
   if (error || !singleLead) {
@@ -370,7 +347,13 @@ const Lead = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20 relative">
+      {/* Centered PuffLoader Overlay with Reduced Opacity */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-10 flex justify-center items-center z-50">
+          <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         {/* Header and Action Buttons */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -380,7 +363,10 @@ const Lead = () => {
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => navigate('/leads')}
-              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200"
+              disabled={isLoading}
+              className={`px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200 ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
               Back to Leads
             </button>
@@ -393,11 +379,12 @@ const Lead = () => {
             <button
               key={index}
               onClick={() => updateStatus(singleLead._id, status)}
+              disabled={isLoading}
               className={`px-4 py-2 text-sm font-medium rounded-full transition-colors duration-200 ${
                 singleLead.disposition === status
                   ? statusTextColors[status]
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
+              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {status}
             </button>
@@ -415,16 +402,22 @@ const Lead = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => setIsEditingLead(!isEditingLead)}
+                  disabled={isLoading}
                   className={`flex items-center gap-1 text-sm ${
                     isEditingLead ? 'text-red-500' : 'text-indigo-500'
-                  } hover:text-indigo-600 transition-colors duration-200`}
+                  } hover:text-indigo-600 transition-colors duration-200 ${
+                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
                   {isEditingLead ? 'Cancel' : <><Edit size={16} /> Edit</>}
                 </button>
                 {isEditingLead && (
                   <button
                     onClick={handleEditLead}
-                    className="flex items-center gap-1 text-sm text-green-500 hover:text-green-600 transition-colors duration-200"
+                    disabled={isLoading}
+                    className={`flex items-center gap-1 text-sm text-green-500 hover:text-green-600 transition-colors duration-200 ${
+                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   >
                     <Save size={16} /> Save
                   </button>
@@ -451,6 +444,7 @@ const Lead = () => {
                         value={editForm[item.key] || ''}
                         onChange={(e) => setEditForm({ ...editForm, [item.key]: e.target.value })}
                         className="bg-transparent border-b border-gray-300 focus:border-indigo-500 focus:outline-none text-right text-sm w-full text-gray-900 transition-colors duration-200"
+                        disabled={isLoading}
                       />
                     ) : item.isLink ? (
                       <a
@@ -523,17 +517,22 @@ const Lead = () => {
                   onChange={(e) => setNewNote(e.target.value)}
                   placeholder="Add a note..."
                   rows="4"
+                  disabled={isLoading}
                 />
                 <div className="flex justify-end gap-2 mt-2">
                   <button
                     onClick={() => setIsEditing(false)}
-                    className="px-3 py-1 text-sm text-red-500 hover:text-red-600"
+                    disabled={isLoading}
+                    className={`px-3 py-1 text-sm text-red-500 hover:text-red-600 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveNotes}
-                    className="inline-flex items-center px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    disabled={isLoading}
+                    className={`inline-flex items-center px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   >
                     <Save className="h-4 w-4 mr-1" /> Save
                   </button>
@@ -542,7 +541,10 @@ const Lead = () => {
             ) : (
               <button
                 onClick={() => setIsEditing(true)}
-                className="inline-flex items-center mt-4 px-3 py-1 text-sm text-indigo-500 hover:text-indigo-600"
+                disabled={isLoading}
+                className={`inline-flex items-center mt-4 px-3 py-1 text-sm text-indigo-500 hover:text-indigo-600 ${
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 <Edit className="h-4 w-4 mr-1" /> Add Note
               </button>
@@ -584,17 +586,24 @@ const Lead = () => {
                 onChange={(e) => setDateNote(e.target.value)}
                 placeholder="Add an optional note..."
                 rows="4"
+                disabled={isLoading}
               />
               <div className="flex justify-end gap-2 mt-4">
                 <button
                   onClick={() => setShowDateNoteModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 rounded-lg transition-colors duration-200"
+                  disabled={isLoading}
+                  className={`px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 rounded-lg transition-colors duration-200 ${
+                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveDateNote}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200"
+                  disabled={isLoading}
+                  className={`px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200 ${
+                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
                   <Save className="h-4 w-4 mr-1 inline" /> Save
                 </button>
@@ -611,6 +620,10 @@ const Lead = () => {
           message={confirmMessage}
           confirmText={confirmText}
           cancelText="Cancel"
+          confirmButtonProps={{
+            disabled: isLoading,
+            children: confirmText,
+          }}
         />
       </div>
     </div>

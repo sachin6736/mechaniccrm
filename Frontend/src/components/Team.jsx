@@ -4,10 +4,14 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Save } from 'lucide-react';
 import ConfirmationModal from './ConfirmationModal';
+import { PuffLoader } from 'react-spinners';
+import useApiLoading from '../hooks/useApiLoading';
+
 const API = import.meta.env.VITE_API_URL;
 
 const Team = () => {
   const navigate = useNavigate();
+  const { loading: apiLoading, withLoading } = useApiLoading();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -15,76 +19,79 @@ const Team = () => {
     role: 'sales',
   });
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const [userRole, setUserRole] = useState(null);
 
+  // Derived loading state for spinner and button/input disabling
+  const isLoading = apiLoading.checkAuth || apiLoading.fetchUsers || apiLoading.createUser;
+
   // Check authentication status and user role on mount
   useEffect(() => {
     const checkAuth = async () => {
-      try {
-        const response = await fetch(`${API}/Auth/check-auth`, {
-          method: 'GET',
-          credentials: 'include',
-        });
-        const data = await response.json();
-        if (!data.isAuthenticated) {
-          setIsAuthenticated(false);
-          toast.error('Please log in to access this page');
-          navigate('/login', { replace: true });
-        } else {
-          setIsAuthenticated(true);
-          setUserRole(data.user.role);
-          if (data.user.role !== 'admin') {
-            toast.error('Access denied. Admins only.');
-            navigate('/leads', { replace: true });
+      await withLoading('checkAuth', async () => {
+        try {
+          const response = await fetch(`${API}/Auth/check-auth`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          const data = await response.json();
+          if (!data.isAuthenticated) {
+            setIsAuthenticated(false);
+            toast.error('Please log in to access this page');
+            navigate('/login', { replace: true });
           } else {
-            fetchUsers();
+            setIsAuthenticated(true);
+            setUserRole(data.user.role);
+            if (data.user.role !== 'admin') {
+              toast.error('Access denied. Admins only.');
+              navigate('/leads', { replace: true });
+            } else {
+              fetchUsers();
+            }
           }
+        } catch (err) {
+          console.error('Error checking auth:', err);
+          setIsAuthenticated(false);
+          toast.error('Authentication error');
+          navigate('/login', { replace: true });
         }
-      } catch (err) {
-        console.error('Error checking auth:', err);
-        setIsAuthenticated(false);
-        toast.error('Authentication error');
-        navigate('/login', { replace: true });
-      }
+      });
     };
     checkAuth();
   }, [navigate]);
 
   const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${API}/Auth/users`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch users: ${response.status}`);
+    await withLoading('fetchUsers', async () => {
+      try {
+        const response = await fetch(`${API}/Auth/users`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to fetch users: ${response.status}`);
+        }
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.message || 'Failed to fetch users');
+        }
+        setUsers(data.data);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setError('Failed to load users.');
+        toast.error('Failed to load users.');
       }
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to fetch users');
-      }
-      setUsers(data.data);
-      setLoading(false);
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setError('Failed to load users.');
-      toast.error('Failed to load users.');
-      setLoading(false);
-    }
+    });
   };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleCreateUser = async () => {
+  const handleCreateUser = () => {
     if (!formData.name || !formData.email || !formData.password || !formData.role) {
       toast.warning('All fields are required');
       return;
@@ -102,37 +109,39 @@ const Team = () => {
     }
 
     setConfirmAction(() => async () => {
-      try {
-        const response = await fetch(`${API}/Auth/create-user`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(formData),
-        });
+      await withLoading('createUser', async () => {
+        try {
+          const response = await fetch(`${API}/Auth/create-user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(formData),
+          });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to create user');
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to create user');
+          }
+
+          const data = await response.json();
+          setUsers([...users, data.user]);
+          setFormData({ name: '', email: '', password: '', role: 'sales' });
+          toast.success('User created successfully');
+          setShowConfirmModal(false);
+        } catch (error) {
+          console.error('Error creating user:', error);
+          toast.error(error.message || 'Error creating user');
         }
-
-        const data = await response.json();
-        setUsers([...users, data.user]);
-        setFormData({ name: '', email: '', password: '', role: 'sales' });
-        toast.success('User created successfully');
-        setShowConfirmModal(false);
-      } catch (error) {
-        console.error('Error creating user:', error);
-        toast.error(error.message || 'Error creating user');
-      }
+      });
     });
     setShowConfirmModal(true);
   };
 
-  // Show loading state while checking authentication
-  if (isAuthenticated === null || userRole === null) {
+  // Show loading state while checking authentication or fetching users
+  if (isAuthenticated === null || userRole === null || apiLoading.checkAuth || apiLoading.fetchUsers) {
     return (
       <div className="min-h-screen bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
-        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
       </div>
     );
   }
@@ -142,14 +151,6 @@ const Team = () => {
     return null;
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
-        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
@@ -157,7 +158,8 @@ const Team = () => {
           <p className="text-sm font-medium">{error}</p>
           <button
             onClick={() => navigate('/leads')}
-            className="mt-2 px-4 py-1 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700"
+            disabled={isLoading}
+            className={`mt-2 px-4 py-1 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Back to Leads
           </button>
@@ -167,7 +169,13 @@ const Team = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20">
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20 relative">
+      {/* Centered PuffLoader Overlay with Preferred Color and Opacity */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-10 flex justify-center items-center z-50">
+          <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         {/* Header and Back Button */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -176,7 +184,8 @@ const Team = () => {
           </h2>
           <button
             onClick={() => navigate('/leads')}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200"
+            disabled={isLoading}
+            className={`px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Back to Leads
           </button>
@@ -202,6 +211,7 @@ const Team = () => {
                   className="mt-1 w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-gray-900"
                   placeholder="Enter user name"
                   required
+                  disabled={isLoading}
                 />
               </div>
               <div>
@@ -216,6 +226,7 @@ const Team = () => {
                   className="mt-1 w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-gray-900"
                   placeholder="Enter user email"
                   required
+                  disabled={isLoading}
                 />
               </div>
               <div>
@@ -230,6 +241,7 @@ const Team = () => {
                   className="mt-1 w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-gray-900"
                   placeholder="Enter password"
                   required
+                  disabled={isLoading}
                 />
               </div>
               <div>
@@ -242,6 +254,7 @@ const Team = () => {
                   onChange={handleChange}
                   className="mt-1 w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-gray-900"
                   required
+                  disabled={isLoading}
                 >
                   <option value="sales">Sales</option>
                   <option value="admin">Admin</option>
@@ -250,7 +263,8 @@ const Team = () => {
               <button
                 type="button"
                 onClick={handleCreateUser}
-                className="w-full inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200"
+                disabled={isLoading}
+                className={`w-full inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <Save className="h-4 w-4 mr-1" /> Create User
               </button>
@@ -275,7 +289,7 @@ const Team = () => {
                       </span>
                       <a
                         href={`mailto:${user.email}`}
-                        className="text-sm text-indigo-500 hover:underline"
+                        className={`text-sm text-indigo-500 hover:underline ${isLoading ? 'pointer-events-none opacity-50' : ''}`}
                       >
                         {user.email}
                       </a>
@@ -307,6 +321,10 @@ const Team = () => {
           message="Are you sure you want to create this user?"
           confirmText="Create User"
           cancelText="Cancel"
+          confirmButtonProps={{
+            disabled: isLoading,
+            children: 'Create User',
+          }}
         />
       </div>
     </div>

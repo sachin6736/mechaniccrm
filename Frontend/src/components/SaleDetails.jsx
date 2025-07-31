@@ -4,6 +4,9 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Edit, Save } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { PuffLoader } from 'react-spinners';
+import useApiLoading from '../hooks/useApiLoading';
+
 const API = import.meta.env.VITE_API_URL;
 
 const statusOptions = ['Pending', 'Completed', 'Failed', 'Refunded', 'Part-Payment'];
@@ -21,6 +24,7 @@ const statusTextColors = {
 const SaleDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { loading: apiLoading, withLoading } = useApiLoading();
   const [sale, setSale] = useState(null);
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
@@ -36,7 +40,6 @@ const SaleDetails = () => {
     cvv: '',
     billingAddress: '',
   });
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -46,112 +49,108 @@ const SaleDetails = () => {
   const [userRole, setUserRole] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(null);
 
+  // Derived loading state for spinner and button/input disabling
+  const isLoading = apiLoading.fetchSale || apiLoading.saveNotes || apiLoading.updateStatus || apiLoading.editPayment;
+
   // Check authentication status on mount
   useEffect(() => {
     const checkAuth = async () => {
-      try {
-        const response = await fetch(`${API}/Auth/check-auth`, {
-          method: 'GET',
-          credentials: 'include',
-        });
-        const data = await response.json();
-        if (!data.isAuthenticated) {
-          setIsAuthenticated(false);
-          toast.error('Please log in to access this page');
-          navigate('/login', { replace: true });
-        } else {
-          setIsAuthenticated(true);
-          setUserRole(data.user.role);
-          if (id) {
-            fetchSale();
+      await withLoading('checkAuth', async () => {
+        try {
+          const response = await fetch(`${API}/Auth/check-auth`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          const data = await response.json();
+          if (!data.isAuthenticated) {
+            setIsAuthenticated(false);
+            toast.error('Please log in to access this page');
+            navigate('/login', { replace: true });
           } else {
-            toast.error('Invalid sale ID');
-            navigate('/sale/sales', { replace: true });
+            setIsAuthenticated(true);
+            setUserRole(data.user.role);
+            if (id) {
+              fetchSale();
+            } else {
+              toast.error('Invalid sale ID');
+              navigate('/sale/sales', { replace: true });
+            }
           }
+        } catch (err) {
+          console.error('Error checking auth:', err);
+          setIsAuthenticated(false);
+          toast.error('Authentication error');
+          navigate('/login', { replace: true });
         }
-      } catch (err) {
-        console.error('Error checking auth:', err);
-        setIsAuthenticated(false);
-        toast.error('Authentication error');
-        navigate('/login', { replace: true });
-      }
+      });
     };
     checkAuth();
   }, [id, navigate]);
 
   const fetchSale = async () => {
-    try {
-      setLoading(true);
-      console.log('Fetching sale with ID:', id);
-      const response = await fetch(`${API}/sale/getsalebyid/${id}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Sale fetch error:', errorText, 'Status:', response.status);
-        throw new Error(`Failed to fetch sale: ${response.status}`);
+    await withLoading('fetchSale', async () => {
+      try {
+        console.log('Fetching sale with ID:', id);
+        const response = await fetch(`${API}/sale/getsalebyid/${id}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Sale fetch error:', errorText, 'Status:', response.status);
+          throw new Error(`Failed to fetch sale: ${response.status}`);
+        }
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.message || 'Failed to fetch sale data');
+        }
+        console.log('Fetched sale:', data.data);
+        setSale(data.data);
+        setNotes(data.data.notes || []);
+        setPaymentForm({
+          totalAmount: '',
+          paymentMethod: '',
+          paymentType: '',
+          contractTerm: '',
+          card: '',
+          exp: '',
+          cvv: '',
+          billingAddress: '',
+        });
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setError('Failed to load sale data.');
+        toast.error('Failed to load sale data.');
       }
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to fetch sale data');
-      }
-      console.log('Fetched sale:', data.data);
-      setSale(data.data);
-      setNotes(data.data.notes || []);
-      setPaymentForm({
-        totalAmount: '',
-        paymentMethod: '',
-        paymentType: '',
-        contractTerm: '',
-        card: '',
-        exp: '',
-        cvv: '',
-        billingAddress: '',
-      });
-      setLoading(false);
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setError('Failed to load sale data.');
-      toast.error('Failed to load sale data.');
-      setLoading(false);
-    }
+    });
   };
 
-  const handleSaveNotes = async () => {
-    if (!newNote.trim()) {
-      toast.warning('Please enter a note');
-      return;
-    }
-
-    try {
+  const handleSaveNotes = () =>
+    withLoading('saveNotes', async () => {
+      if (!newNote.trim()) {
+        throw new Error('Please enter a note');
+      }
       const response = await fetch(`${API}/sale/updatenotes/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ text: newNote }),
       });
-
-      if (response.ok) {
-        const updatedSale = await response.json();
-        if (!updatedSale.success) {
-          throw new Error(updatedSale.message || 'Failed to add note');
-        }
-        setSale(updatedSale.data);
-        setNotes(updatedSale.data.notes || []);
-        toast.success('Note added successfully');
-        setNewNote('');
-        setIsEditingNotes(false);
-      } else {
+      if (!response.ok) {
         const errorData = await response.json();
-        console.error('Failed to add note:', errorData.message);
-        toast.error(errorData.message || 'Failed to add note');
+        throw new Error(errorData.message || 'Failed to add note');
       }
-    } catch (error) {
-      console.error('Error adding note:', error);
-      toast.error('Error adding note');
-    }
-  };
+      const updatedSale = await response.json();
+      if (!updatedSale.success) {
+        throw new Error(updatedSale.message || 'Failed to add note');
+      }
+      setSale(updatedSale.data);
+      setNotes(updatedSale.data.notes || []);
+      toast.success('Note added successfully');
+      setNewNote('');
+      setIsEditingNotes(false);
+      return updatedSale;
+    });
 
   const updateStatus = (saleId, newStatus) => {
     if (sale.status === newStatus) {
@@ -162,7 +161,7 @@ const SaleDetails = () => {
     setConfirmMessage(`Are you sure you want to change the status from "${sale.status || 'None'}" to "${newStatus}"?`);
     setConfirmText('Change Status');
     setConfirmAction(() => async () => {
-      try {
+      await withLoading('updateStatus', async () => {
         const response = await fetch(`${API}/sale/updatesale/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -179,35 +178,30 @@ const SaleDetails = () => {
             ],
           }),
         });
-
-        if (response.ok) {
-          toast.success('Status changed successfully');
-          const updatedSale = await response.json();
-          if (!updatedSale.success) {
-            throw new Error(updatedSale.message || 'Failed to update sale');
-          }
-          setSale(updatedSale.data);
-          setNotes(updatedSale.data.notes || []);
-          setPaymentForm({
-            totalAmount: '',
-            paymentMethod: '',
-            paymentType: '',
-            contractTerm: '',
-            card: '',
-            exp: '',
-            cvv: '',
-            billingAddress: '',
-          });
-          setShowConfirmModal(false);
-        } else {
+        if (!response.ok) {
           const errorData = await response.json();
-          console.error('Failed to update status:', errorData.message);
-          toast.error(errorData.message || 'Failed to update status');
+          throw new Error(errorData.message || 'Failed to update status');
         }
-      } catch (error) {
-        console.error('Error updating sale status:', error);
-        toast.error('Error updating sale status');
-      }
+        const updatedSale = await response.json();
+        if (!updatedSale.success) {
+          throw new Error(updatedSale.message || 'Failed to update sale');
+        }
+        setSale(updatedSale.data);
+        setNotes(updatedSale.data.notes || []);
+        setPaymentForm({
+          totalAmount: '',
+          paymentMethod: '',
+          paymentType: '',
+          contractTerm: '',
+          card: '',
+          exp: '',
+          cvv: '',
+          billingAddress: '',
+        });
+        toast.success('Status changed successfully');
+        setShowConfirmModal(false);
+        return updatedSale;
+      });
     });
     setShowConfirmModal(true);
   };
@@ -295,87 +289,90 @@ const SaleDetails = () => {
     setConfirmMessage('Are you sure you want to save changes to this sale?');
     setConfirmText('Save Changes');
     setConfirmAction(() => async () => {
-      try {
-        const paymentDate = new Date();
-        let newContractEndDate = new Date(paymentDate);
-        let partialPayment = null;
-        let previousContract = null;
-        let updatedPartialPayments = sale.partialPayments || [];
+      await withLoading('editPayment', async () => {
+        try {
+          const paymentDate = new Date();
+          let newContractEndDate = new Date(paymentDate);
+          let partialPayment = null;
+          let previousContract = null;
+          let updatedPartialPayments = sale.partialPayments || [];
 
-        if (paymentForm.paymentType === 'Recurring') {
-          const partialPaymentAmount = parseFloat(paymentForm.totalAmount) / parseInt(paymentForm.contractTerm);
-          if (remainingAmount > 0 && partialPaymentAmount > remainingAmount) {
-            toast.warning(`Partial payment amount (${partialPaymentAmount.toFixed(2)}) exceeds remaining amount (${remainingAmount.toFixed(2)})`);
-            return;
-          }
-          partialPayment = {
-            amount: partialPaymentAmount,
-            paymentDate: paymentDate.toISOString(),
-            createdAt: new Date(),
-            createdBy: null,
-          };
-          newContractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : new Date(paymentDate);
-          newContractEndDate.setMonth(newContractEndDate.getMonth() + 1);
-          updatedPartialPayments = sale.partialPayments ? [...sale.partialPayments, partialPayment] : [partialPayment];
-        }
-
-        if (contractEndDate && contractEndDate <= currentDate) {
-          previousContract = {
-            totalAmount: sale.totalAmount,
-            paymentType: sale.paymentType,
-            contractTerm: sale.contractTerm,
-            paymentMethod: sale.paymentMethod,
-            card: sale.paymentMethod === 'Credit Card' ? sale.card : null,
-            exp: sale.paymentMethod === 'Credit Card' ? sale.exp : null,
-            cvv: sale.paymentMethod === 'Credit Card' ? sale.cvv : null,
-            billingAddress: sale.paymentMethod === 'Credit Card' ? sale.billingAddress : null,
-            paymentDate: sale.paymentDate,
-            contractEndDate: sale.contractEndDate,
-            partialPayments: sale.partialPayments || [],
-            createdAt: new Date(),
-          };
-          updatedPartialPayments = [];
-          newContractEndDate = new Date(paymentDate);
-          if (paymentForm.paymentType === 'One-time') {
-            newContractEndDate.setMonth(newContractEndDate.getMonth() + parseInt(paymentForm.contractTerm));
-          } else {
+          if (paymentForm.paymentType === 'Recurring') {
+            const partialPaymentAmount = parseFloat(paymentForm.totalAmount) / parseInt(paymentForm.contractTerm);
+            if (remainingAmount > 0 && partialPaymentAmount > remainingAmount) {
+              throw new Error(`Partial payment amount (${partialPaymentAmount.toFixed(2)}) exceeds remaining amount (${remainingAmount.toFixed(2)})`);
+            }
+            partialPayment = {
+              amount: partialPaymentAmount,
+              paymentDate: paymentDate.toISOString(),
+              createdAt: new Date(),
+              createdBy: null,
+            };
+            newContractEndDate = sale.contractEndDate ? new Date(sale.contractEndDate) : new Date(paymentDate);
             newContractEndDate.setMonth(newContractEndDate.getMonth() + 1);
+            updatedPartialPayments = sale.partialPayments ? [...sale.partialPayments, partialPayment] : [partialPayment];
           }
-        }
 
-        const response = await fetch(`${API}/sale/updatesale/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            totalAmount: parseFloat(paymentForm.totalAmount),
-            paymentMethod: paymentForm.paymentMethod,
-            paymentType: paymentForm.paymentType,
-            contractTerm: paymentForm.contractTerm,
-            card: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.card : null,
-            exp: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.exp : null,
-            cvv: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.cvv : null,
-            billingAddress: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.billingAddress : null,
-            partialPayments: updatedPartialPayments,
-            paymentDate: paymentDate.toISOString(),
-            contractEndDate: newContractEndDate.toISOString(),
-            previousContracts: previousContract
-              ? sale.previousContracts
-                ? [...sale.previousContracts, previousContract]
-                : [previousContract]
-              : sale.previousContracts || [],
-            notes: [
-              ...(sale.notes || []),
-              {
-                text: `Updated payment details: Total Amount $${parseFloat(paymentForm.totalAmount).toFixed(2)}, Payment Method: ${paymentForm.paymentMethod}, Payment Type: ${paymentForm.paymentType}, Contract Term: ${paymentForm.contractTerm} months, Contract End Date: ${newContractEndDate.toLocaleDateString()}${paymentForm.paymentMethod === 'Credit Card' ? `, Billing Address: ${paymentForm.billingAddress}` : ''}`,
-                createdAt: new Date(),
-                createdBy: null,
-              },
-            ],
-          }),
-        });
+          if (contractEndDate && contractEndDate <= currentDate) {
+            previousContract = {
+              totalAmount: sale.totalAmount,
+              paymentType: sale.paymentType,
+              contractTerm: sale.contractTerm,
+              paymentMethod: sale.paymentMethod,
+              card: sale.paymentMethod === 'Credit Card' ? sale.card : null,
+              exp: sale.paymentMethod === 'Credit Card' ? sale.exp : null,
+              cvv: sale.paymentMethod === 'Credit Card' ? sale.cvv : null,
+              billingAddress: sale.paymentMethod === 'Credit Card' ? sale.billingAddress : null,
+              paymentDate: sale.paymentDate,
+              contractEndDate: sale.contractEndDate,
+              partialPayments: sale.partialPayments || [],
+              createdAt: new Date(),
+            };
+            updatedPartialPayments = [];
+            newContractEndDate = new Date(paymentDate);
+            if (paymentForm.paymentType === 'One-time') {
+              newContractEndDate.setMonth(newContractEndDate.getMonth() + parseInt(paymentForm.contractTerm));
+            } else {
+              newContractEndDate.setMonth(newContractEndDate.getMonth() + 1);
+            }
+          }
 
-        if (response.ok) {
+          const response = await fetch(`${API}/sale/updatesale/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              totalAmount: parseFloat(paymentForm.totalAmount),
+              paymentMethod: paymentForm.paymentMethod,
+              paymentType: paymentForm.paymentType,
+              contractTerm: paymentForm.contractTerm,
+              card: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.card : null,
+              exp: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.exp : null,
+              cvv: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.cvv : null,
+              billingAddress: paymentForm.paymentMethod === 'Credit Card' ? paymentForm.billingAddress : null,
+              partialPayments: updatedPartialPayments,
+              paymentDate: paymentDate.toISOString(),
+              contractEndDate: newContractEndDate.toISOString(),
+              previousContracts: previousContract
+                ? sale.previousContracts
+                  ? [...sale.previousContracts, previousContract]
+                  : [previousContract]
+                : sale.previousContracts || [],
+              notes: [
+                ...(sale.notes || []),
+                {
+                  text: `Updated payment details: Total Amount $${parseFloat(paymentForm.totalAmount).toFixed(2)}, Payment Method: ${paymentForm.paymentMethod}, Payment Type: ${paymentForm.paymentType}, Contract Term: ${paymentForm.contractTerm} months, Contract End Date: ${newContractEndDate.toLocaleDateString()}${paymentForm.paymentMethod === 'Credit Card' ? `, Billing Address: ${paymentForm.billingAddress}` : ''}`,
+                  createdAt: new Date(),
+                  createdBy: null,
+                },
+              ],
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to update sale');
+          }
           const updatedSale = await response.json();
           if (!updatedSale.success) {
             throw new Error(updatedSale.message || 'Failed to update sale');
@@ -393,17 +390,13 @@ const SaleDetails = () => {
           });
           setNotes(updatedSale.data.notes || []);
           toast.success('Payment details updated successfully');
-        } else {
-          const errorData = await response.json();
-          console.error('Failed to update sale:', errorData.message);
-          toast.error(errorData.message || 'Failed to update sale');
+          setShowConfirmModal(false);
+          return updatedSale;
+        } catch (error) {
+          console.error('Error updating sale:', error);
+          throw new Error('Error updating sale');
         }
-      } catch (error) {
-        console.error('Error updating sale:', error);
-        toast.error('Error updating sale');
-      } finally {
-        setShowConfirmModal(false);
-      }
+      });
     });
     setShowConfirmModal(true);
   };
@@ -438,11 +431,11 @@ const SaleDetails = () => {
     setShowPaymentModal(true);
   };
 
-  // Show loading state while checking authentication
-  if (isAuthenticated === null) {
+  // Show loading state while checking authentication or fetching sale
+  if (isAuthenticated === null || apiLoading.checkAuth || apiLoading.fetchSale) {
     return (
       <div className="min-h-screen bg-gray-50 flex justify-center items-center px-4 sm:px-6 md:pl-24 md:pt-20">
-        <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+        <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
       </div>
     );
   }
@@ -452,14 +445,6 @@ const SaleDetails = () => {
     return null;
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center px-4 sm:px-6 md:pl-24 md:pt-20">
-        <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
   if (error || !sale) {
     return (
       <div className="min-h-screen bg-gray-50 flex justify-center items-center px-4 sm:px-6 md:pl-24 md:pt-20">
@@ -467,7 +452,8 @@ const SaleDetails = () => {
           <p className="text-sm font-medium">{error || 'Sale not found. Please check the sale ID or try again later.'}</p>
           <button
             onClick={() => navigate('/sale/sales')}
-            className="mt-2 px-4 py-1 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700"
+            disabled={isLoading}
+            className={`mt-2 px-4 py-1 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Back to Sales
           </button>
@@ -477,20 +463,28 @@ const SaleDetails = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-6 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-16">
+    <div className="min-h-screen bg-gray-50 py-6 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-16 relative">
+      {/* Centered PuffLoader Overlay with Preferred Color and Opacity */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-10 flex justify-center items-center z-50">
+          <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Sale Details</h2>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={handleOpenPaymentModal}
-              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition duration-200"
+              disabled={isLoading}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               Payment
             </button>
             <button
               onClick={() => navigate(`/lead/${sale.leadId._id}`)}
-              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition duration-200"
+              disabled={isLoading}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               View Lead
             </button>
@@ -502,11 +496,12 @@ const SaleDetails = () => {
             <button
               key={index}
               onClick={() => updateStatus(sale._id, status)}
+              disabled={isLoading}
               className={`px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-full transition-colors duration-200 ${
                 sale.status === status
                   ? statusTextColors[status]
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
+              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {status}
             </button>
@@ -527,6 +522,7 @@ const SaleDetails = () => {
                     <button
                       onClick={() => navigate(`/lead/${value._id}`)}
                       className="text-teal-500 hover:underline"
+                      disabled={isLoading}
                     >
                       {value.name}
                     </button>
@@ -554,7 +550,7 @@ const SaleDetails = () => {
                     {item.isLink ? (
                       <a
                         href={`mailto:${sale[item.key]}`}
-                        className="text-xs sm:text-sm text-teal-500 hover:underline truncate"
+                        className={`text-xs sm:text-sm text-teal-500 hover:underline truncate ${isLoading ? 'pointer-events-none opacity-50' : ''}`}
                       >
                         {sale[item.key]}
                       </a>
@@ -621,17 +617,20 @@ const SaleDetails = () => {
                   onChange={(e) => setNewNote(e.target.value)}
                   placeholder="Add a note..."
                   rows="4"
+                  disabled={isLoading}
                 />
                 <div className="flex justify-end gap-2 mt-2">
                   <button
                     onClick={() => setIsEditingNotes(false)}
-                    className="px-3 py-1 text-xs sm:text-sm text-red-500 hover:text-red-600"
+                    disabled={isLoading}
+                    className={`px-3 py-1 text-xs sm:text-sm text-red-500 hover:text-red-600 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveNotes}
-                    className="inline-flex items-center px-3 py-1 bg-teal-600 text-white text-xs sm:text-sm rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                    disabled={isLoading}
+                    className={`inline-flex items-center px-3 py-1 bg-teal-600 text-white text-xs sm:text-sm rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <Save className="h-4 w-4 mr-1" /> Save
                   </button>
@@ -640,7 +639,8 @@ const SaleDetails = () => {
             ) : (
               <button
                 onClick={() => setIsEditingNotes(true)}
-                className="inline-flex items-center mt-4 px-3 py-1 text-xs sm:text-sm text-teal-500 hover:text-teal-600"
+                disabled={isLoading}
+                className={`inline-flex items-center mt-4 px-3 py-1 text-xs sm:text-sm text-teal-500 hover:text-teal-600 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <Edit className="h-4 w-4 mr-1" /> Add Note
               </button>
@@ -828,6 +828,7 @@ const SaleDetails = () => {
                     placeholder="Enter number of months"
                     readOnly={sale.paymentType === 'Recurring' && sale.contractEndDate && new Date(sale.contractEndDate) > new Date()}
                     required
+                    disabled={isLoading}
                   />
                 </div>
                 <div>
@@ -841,6 +842,7 @@ const SaleDetails = () => {
                     placeholder="Enter total amount"
                     readOnly={sale.paymentType === 'Recurring' && sale.contractEndDate && new Date(sale.contractEndDate) > new Date()}
                     required
+                    disabled={isLoading}
                   />
                 </div>
                 <div>
@@ -849,7 +851,7 @@ const SaleDetails = () => {
                     value={paymentForm.paymentType}
                     onChange={(e) => setPaymentForm({ ...paymentForm, paymentType: e.target.value })}
                     className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
-                    disabled={sale.paymentType === 'Recurring' && sale.contractEndDate && new Date(sale.contractEndDate) > new Date()}
+                    disabled={sale.paymentType === 'Recurring' && sale.contractEndDate && new Date(sale.contractEndDate) > new Date() || isLoading}
                     required
                   >
                     <option value="" disabled>Select payment type</option>
@@ -889,6 +891,7 @@ const SaleDetails = () => {
                     }
                     className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                     required
+                    disabled={isLoading}
                   >
                     <option value="" disabled>Select payment method</option>
                     {paymentMethodOptions.map((option) => (
@@ -907,6 +910,7 @@ const SaleDetails = () => {
                         className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                         placeholder="Enter full card number"
                         required
+                        disabled={isLoading}
                       />
                     </div>
                     <div>
@@ -918,6 +922,7 @@ const SaleDetails = () => {
                         className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                         placeholder="MM/YY"
                         required
+                        disabled={isLoading}
                       />
                     </div>
                     <div>
@@ -929,6 +934,7 @@ const SaleDetails = () => {
                         className="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm"
                         placeholder="Enter CVV"
                         required
+                        disabled={isLoading}
                       />
                     </div>
                     <div>
@@ -940,6 +946,7 @@ const SaleDetails = () => {
                         placeholder="Enter billing address"
                         rows="3"
                         required
+                        disabled={isLoading}
                       />
                     </div>
                   </>
@@ -948,13 +955,15 @@ const SaleDetails = () => {
               <div className="mt-4 sm:mt-6 flex justify-end gap-2">
                 <button
                   onClick={() => setShowPaymentModal(false)}
-                  className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-gray-600 hover:text-gray-800"
+                  disabled={isLoading}
+                  className={`px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-gray-600 hover:text-gray-800 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleEditPayment}
-                  className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 bg-teal-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                  disabled={isLoading}
+                  className={`inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 bg-teal-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <Save className="h-4 w-4 mr-1" /> Save
                 </button>
@@ -971,6 +980,10 @@ const SaleDetails = () => {
           message={confirmMessage}
           confirmText={confirmText}
           cancelText="Cancel"
+          confirmButtonProps={{
+            disabled: isLoading,
+            children: confirmText,
+          }}
         />
       </div>
     </div>

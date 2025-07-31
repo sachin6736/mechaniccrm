@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { PuffLoader } from 'react-spinners';
+import useApiLoading from '../hooks/useApiLoading';
+
 const API = import.meta.env.VITE_API_URL;
 
 const AddLead = () => {
   const navigate = useNavigate();
+  const { loading: apiLoading, withLoading } = useApiLoading();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -15,8 +19,10 @@ const AddLead = () => {
     notes: '',
     disposition: 'Follow up',
   });
-  const [loading, setLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(null);
+
+  // Derived loading state for spinner and button disabling
+  const isLoading = apiLoading.createLead;
 
   // Check authentication status on mount
   useEffect(() => {
@@ -51,35 +57,37 @@ const AddLead = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    await withLoading('createLead', async () => {
+      try {
+        const response = await fetch(`${API}/Lead/createlead`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(formData),
+        });
 
-    try {
-      const response = await fetch(`${API}/Lead/createlead`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      });
+        const data = await response.json();
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        toast.success(data.message);
-        navigate(`/lead/${data.data._id}`); // Navigate to new lead's details page
-      } else {
-        toast.error(data.message || 'Failed to create lead');
+        if (response.ok && data.success) {
+          toast.success(data.message);
+          navigate(`/lead/${data.data._id}`); // Navigate to new lead's details page
+        } else {
+          throw new Error(data.message || 'Failed to create lead');
+        }
+      } catch (error) {
+        console.error('Error creating lead:', error);
+        toast.error('Error creating lead');
       }
-    } catch (error) {
-      console.error('Error creating lead:', error);
-      toast.error('Error creating lead');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   // Show loading state while checking authentication
   if (isAuthenticated === null) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
   // Don't render anything if not authenticated (redirect will handle navigation)
@@ -88,13 +96,22 @@ const AddLead = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20 relative">
+      {/* Centered PuffLoader Overlay with Preferred Color and Opacity */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-10 flex justify-center items-center z-50">
+          <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Add New Lead</h2>
           <button
             onClick={() => navigate('/leads')}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200"
+            disabled={isLoading}
+            className={`px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200 ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             Back to Leads
           </button>
@@ -125,6 +142,7 @@ const AddLead = () => {
                     className="mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 bg-white"
                     rows="4"
                     placeholder={`Enter ${field.label.toLowerCase()}`}
+                    disabled={isLoading}
                   />
                 ) : field.type === 'select' ? (
                   <select
@@ -132,6 +150,7 @@ const AddLead = () => {
                     value={formData[field.name]}
                     onChange={handleChange}
                     className="mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 bg-white"
+                    disabled={isLoading}
                   >
                     {field.options.map((option) => (
                       <option key={option} value={option}>{option}</option>
@@ -146,6 +165,7 @@ const AddLead = () => {
                     required={field.required}
                     className="mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 bg-white"
                     placeholder={`Enter ${field.label.toLowerCase()}`}
+                    disabled={isLoading}
                   />
                 )}
               </div>
@@ -154,18 +174,21 @@ const AddLead = () => {
               <button
                 type="button"
                 onClick={() => navigate('/leads')}
-                className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 rounded-lg transition-colors duration-200"
+                disabled={isLoading}
+                className={`px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 rounded-lg transition-colors duration-200 ${
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={isLoading}
                 className={`px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200 ${
-                  loading ? 'opacity-50 cursor-not-allowed' : ''
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                {loading ? 'Creating...' : 'Create Lead'}
+                Create Lead
               </button>
             </div>
           </form>
