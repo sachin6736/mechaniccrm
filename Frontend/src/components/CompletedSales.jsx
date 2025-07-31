@@ -1,12 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, Search } from 'lucide-react';
 import { PuffLoader } from 'react-spinners';
 import useApiLoading from '../hooks/useApiLoading';
 
 const API = import.meta.env.VITE_API_URL;
+
+// Custom debounce function
+const debounce = (func, wait) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
 
 const CompletedSales = () => {
   const navigate = useNavigate();
@@ -17,6 +26,8 @@ const CompletedSales = () => {
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalSales: 0, hasMore: false });
   const [sortField, setSortField] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState(''); // Initialize with empty string for "All Completed Sales"
   const [isAuthenticated, setIsAuthenticated] = useState(null);
 
   // Derived loading state for spinner and button/input disabling
@@ -38,7 +49,7 @@ const CompletedSales = () => {
             navigate('/login', { replace: true });
           } else {
             setIsAuthenticated(true);
-            await fetchCompletedSales(1);
+            await fetchCompletedSales(1, searchQuery, ''); // Initial fetch with no status filter
           }
         } catch (err) {
           console.error('Error checking auth:', err);
@@ -51,18 +62,20 @@ const CompletedSales = () => {
     checkAuth();
   }, [navigate]);
 
-  const fetchCompletedSales = async (pageNum, sort = sortField, order = sortOrder) => {
+  const fetchCompletedSales = async (pageNum, search = searchQuery, status = filterStatus, sort = sortField, order = sortOrder) => {
     await withLoading('fetchCompletedSales', async () => {
       try {
-        const query = new URLSearchParams({
+        const queryParams = new URLSearchParams({
           page: pageNum,
           limit: 10,
           sortField: sort,
           sortOrder: order,
-        }).toString();
+        });
+        if (search) queryParams.append('search', search);
+        if (status !== undefined) queryParams.append('status', status); // Explicitly include status, even if empty
 
-        console.log('Fetching completed sales with query:', query);
-        const response = await fetch(`${API}/Sale/completedsales?${query}`, {
+        console.log('Fetching completed sales with query:', queryParams.toString());
+        const response = await fetch(`${API}/Sale/completedsales?${queryParams}`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -88,6 +101,14 @@ const CompletedSales = () => {
     });
   };
 
+  // Debounced version of fetchCompletedSales for search
+  const debouncedFetchCompletedSales = useCallback(
+    debounce((pageNum, search, status, sort, order) => {
+      fetchCompletedSales(pageNum, search, status, sort, order);
+    }, 1000),
+    []
+  );
+
   const handleSort = (field) => {
     if (isLoading) return;
     const isSameField = sortField === field;
@@ -95,27 +116,43 @@ const CompletedSales = () => {
     setSortField(field);
     setSortOrder(newSortOrder);
     setPage(1);
-    fetchCompletedSales(1, field, newSortOrder);
+    fetchCompletedSales(1, searchQuery, filterStatus, field, newSortOrder);
+  };
+
+  const handleSearchChange = (e) => {
+    if (isLoading) return;
+    const newSearchQuery = e.target.value;
+    setSearchQuery(newSearchQuery);
+    setPage(1);
+    debouncedFetchCompletedSales(1, newSearchQuery, filterStatus, sortField, sortOrder);
+  };
+
+  const handleFilterChange = (e) => {
+    if (isLoading) return;
+    const newStatus = e.target.value;
+    setFilterStatus(newStatus);
+    setPage(1);
+    fetchCompletedSales(1, searchQuery, newStatus, sortField, sortOrder);
   };
 
   const handleNextPage = () => {
     if (isLoading || !pagination.hasMore) return;
     const nextPage = page + 1;
     setPage(nextPage);
-    fetchCompletedSales(nextPage);
+    fetchCompletedSales(nextPage, searchQuery, filterStatus);
   };
 
   const handlePreviousPage = () => {
     if (isLoading || page <= 1) return;
     const prevPage = page - 1;
     setPage(prevPage);
-    fetchCompletedSales(prevPage);
+    fetchCompletedSales(prevPage, searchQuery, filterStatus);
   };
 
   const handlePageClick = (pageNum) => {
     if (isLoading) return;
     setPage(pageNum);
-    fetchCompletedSales(pageNum);
+    fetchCompletedSales(pageNum, searchQuery, filterStatus);
   };
 
   const handleSaleClick = (saleId) => {
@@ -156,7 +193,6 @@ const CompletedSales = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20 relative">
-      {/* Centered PuffLoader Overlay with Preferred Color and Opacity */}
       {isLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-10 flex justify-center items-center z-50">
           <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
@@ -173,6 +209,43 @@ const CompletedSales = () => {
             Back to Leads
           </button>
         </div>
+
+        <div className="mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          <div>
+            <label htmlFor="searchQuery" className="block text-sm font-medium text-gray-700 mb-1">
+              Search Completed Sales
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                id="searchQuery"
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                placeholder="Search by name, business name, email, or phone"
+                className={`w-full sm:w-64 pl-10 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 text-sm bg-white shadow-sm ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700 mb-1">
+              Filter by Status
+            </label>
+            <select
+              id="statusFilter"
+              value={filterStatus}
+              onChange={handleFilterChange}
+              className={`w-full sm:w-64 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 text-sm bg-white shadow-sm ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isLoading}
+            >
+              <option value="">All Completed Sales</option>
+              <option value="Completed">Completed</option>
+              <option value="Part-Payment">Part-Payment</option>
+            </select>
+          </div>
+        </div>
+
         <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
           {sales.length === 0 ? (
             <div className="p-6 text-center text-gray-500 text-sm font-medium">
@@ -226,11 +299,11 @@ const CompletedSales = () => {
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`text-indigo-600 hover:text-indigo-800 text-sm font-medium ${isLoading ? 'pointer-events-none opacity-50' : ''}`}>
-                            {sale.leadId?.name || 'Unknown'}
+                            {sale.name || sale.leadId?.name || 'Unknown'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {sale.leadId?.businessName || 'N/A'}
+                          {sale.businessName || sale.leadId?.businessName || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           ${parseFloat(sale.totalAmount || 0).toFixed(2)}

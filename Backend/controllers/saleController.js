@@ -10,47 +10,56 @@ export const getAllSales = async (req, res) => {
     const sortField = req.query.sortField || 'createdAt';
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
     const search = req.query.search || '';
+    const status = req.query.status; // No default here, handle explicitly
 
-    console.log('Fetching sales with params:', { page, limit, skip, sortField, sortOrder, search });
+    console.log('Fetching sales with params:', { page, limit, skip, sortField, sortOrder, search, status });
 
     // Build query
-    const query = { status: 'Pending' };
+    const query = {};
+    if (status === '') {
+      // No status filter when status is empty string (fetch all statuses)
+    } else if (status) {
+      query.status = status; // Apply specific status filter
+    } else {
+      query.status = 'Pending'; // Default to Pending if status is not provided
+    }
+
     if (search) {
       const searchRegex = new RegExp(search, 'i');
-      query.$and = [
-        { status: 'Pending' },
-        {
-          $or: [
-            { name: searchRegex },
-            { email: searchRegex },
-            { phoneNumber: searchRegex },
-            { businessName: searchRegex },
-          ],
-        },
+      query.$or = [
+        { name: searchRegex },
+        { email: searchRegex },
+        { phoneNumber: searchRegex },
+        { businessName: searchRegex },
       ];
     }
 
+    // Define sort mapping based on Sale schema fields
     const sortMapping = {
-      'leadId.name': 'name',
-      'leadId.businessName': 'businessName',
+      saleId: 'saleId',
+      'leadId.name': 'name', // Maps to Sale.name
+      'leadId.businessName': 'businessName', // Maps to Sale.businessName
       totalAmount: 'totalAmount',
       paymentType: 'paymentType',
       contractTerm: 'contractTerm',
       paymentMethod: 'paymentMethod',
       status: 'status',
       paymentDate: 'paymentDate',
+      'createdBy.name': 'createdBy.name',
       createdAt: 'createdAt',
     };
 
     const sort = { [sortMapping[sortField] || 'createdAt']: sortOrder };
 
+    // Fetch sales with population, excluding sensitive fields
     const sales = await Sale.find(query)
       .sort(sort)
       .skip(skip)
       .limit(limit)
+      .select('-card -exp -cvv') // Exclude sensitive fields
       .populate('leadId', 'name businessName')
+      .populate('createdBy', 'name email')
       .populate('notes.createdBy', 'name email')
-      .populate('createdBy','name email')
       .lean();
 
     const totalSales = await Sale.countDocuments(query);
@@ -78,18 +87,56 @@ export const getCompletedSales = async (req, res) => {
     const skip = (page - 1) * limit;
     const sortField = req.query.sortField || 'createdAt';
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+    const search = req.query.search || '';
+    const status = req.query.status; // Optional status filter
 
-    console.log('Fetching completed sales with pagination:', { page, limit, skip, sortField, sortOrder });
+    console.log('Fetching completed sales with params:', { page, limit, skip, sortField, sortOrder, search, status });
 
-    const sales = await Sale.find({ status: { $in: ['Completed', 'Part-Payment'] } })
-      .sort({ [sortField]: sortOrder })
+    // Build query
+    const query = {
+      status: { $in: ['Completed', 'Part-Payment'] }, // Base filter for completed sales
+    };
+
+    if (status && status !== '') {
+      query.status = status; // Override to specific status if provided
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { email: searchRegex },
+        { phoneNumber: searchRegex },
+        { businessName: searchRegex },
+      ];
+    }
+
+    // Define sort mapping based on Sale schema fields
+    const sortMapping = {
+      'leadId.name': 'name', // Maps to Sale.name
+      'leadId.businessName': 'businessName', // Maps to Sale.businessName
+      totalAmount: 'totalAmount',
+      paymentType: 'paymentType',
+      contractTerm: 'contractTerm',
+      paymentMethod: 'paymentMethod',
+      status: 'status',
+      paymentDate: 'paymentDate',
+      createdAt: 'createdAt',
+    };
+
+    const sort = { [sortMapping[sortField] || 'createdAt']: sortOrder };
+
+    // Fetch sales with population, excluding sensitive fields
+    const sales = await Sale.find(query)
+      .sort(sort)
       .skip(skip)
       .limit(limit)
+      .select('-card -exp -cvv') // Exclude sensitive fields
       .populate('leadId', 'name businessName')
       .populate('notes.createdBy', 'name email')
       .lean();
 
-    const totalSales = await Sale.countDocuments({ status: { $in: ['Completed', 'Part-Payment'] } });
+    const totalSales = await Sale.countDocuments(query);
 
     res.status(200).json({
       success: true,

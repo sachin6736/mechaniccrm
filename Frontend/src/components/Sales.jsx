@@ -27,10 +27,10 @@ const Sales = () => {
   const [sortField, setSortField] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [filterStatus, setFilterStatus] = useState('Pending'); // Initialize with Pending
   const [isAuthenticated, setIsAuthenticated] = useState(null);
 
-  // Derived loading state for spinner and button/input disabling
+  // Derived loading state
   const isLoading = apiLoading.checkAuth || apiLoading.fetchSales;
 
   // Check authentication status on mount
@@ -49,7 +49,7 @@ const Sales = () => {
             navigate('/login', { replace: true });
           } else {
             setIsAuthenticated(true);
-            await fetchSales(1);
+            await fetchSales(1, searchQuery, 'Pending'); // Initial fetch with Pending
           }
         } catch (err) {
           console.error('Error checking auth:', err);
@@ -65,17 +65,17 @@ const Sales = () => {
   const fetchSales = async (pageNum, search = searchQuery, status = filterStatus, sort = sortField, order = sortOrder) => {
     await withLoading('fetchSales', async () => {
       try {
-        const query = new URLSearchParams({
+        const queryParams = new URLSearchParams({
           page: pageNum,
           limit: 10,
-          ...(search && { search }),
-          ...(status && { status }),
           sortField: sort,
           sortOrder: order,
-        }).toString();
+        });
+        if (search) queryParams.append('search', search);
+        if (status !== undefined) queryParams.append('status', status); // Explicitly include status, even if empty
 
-        console.log('Fetching sales with query:', query);
-        const response = await fetch(`${API}/Sale/sales?${query}`, {
+        console.log('Fetching sales with query:', queryParams.toString());
+        const response = await fetch(`${API}/Sale/sales?${queryParams}`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -106,7 +106,7 @@ const Sales = () => {
   const debouncedFetchSales = useCallback(
     debounce((pageNum, search, status, sort, order) => {
       fetchSales(pageNum, search, status, sort, order);
-    }, 300),
+    }, 1000),
     []
   );
 
@@ -194,7 +194,6 @@ const Sales = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20 relative">
-      {/* Centered PuffLoader Overlay with Preferred Color and Opacity */}
       {isLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-10 flex justify-center items-center z-50">
           <PuffLoader color="#2701FF" size={50} aria-label="Loading" />
@@ -272,7 +271,7 @@ const Sales = () => {
                         { label: 'Payment Method', field: 'paymentMethod' },
                         { label: 'Status', field: 'status' },
                         { label: 'Payment Date', field: 'paymentDate' },
-                        { label: 'Sale CreatedBy', field: 'createdBy' },
+                        { label: 'Sale CreatedBy', field: 'createdBy.name' },
                       ].map(({ label, field }) => (
                         <th
                           key={field}
@@ -309,11 +308,11 @@ const Sales = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`text-indigo-600 hover:text-indigo-800 text-sm font-medium ${isLoading ? 'pointer-events-none opacity-50' : ''}`}>
-                            {sale.leadId?.name || 'Unknown'}
+                            {sale.name || sale.leadId?.name || 'Unknown'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {sale.leadId?.businessName || 'N/A'}
+                          {sale.businessName || sale.leadId?.businessName || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           ${parseFloat(sale.totalAmount || 0).toFixed(2)}

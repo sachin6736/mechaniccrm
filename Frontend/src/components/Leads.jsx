@@ -158,7 +158,7 @@ const Leads = () => {
   const debouncedFetchLeads = useCallback(
     debounce((pageNum, disposition, search, sort, order) => {
       fetchLeads(pageNum, disposition, search, sort, order);
-    }, 300),
+    }, 1000),
     []
   );
 
