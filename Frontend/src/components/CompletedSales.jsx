@@ -14,6 +14,34 @@ const CompletedSales = () => {
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalSales: 0, hasMore: false });
   const [sortField, setSortField] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${API}/Auth/check-auth`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        const data = await response.json();
+        if (!data.isAuthenticated) {
+          setIsAuthenticated(false);
+          toast.error('Please log in to access this page');
+          navigate('/login', { replace: true });
+        } else {
+          setIsAuthenticated(true);
+          fetchCompletedSales(1); // Fetch sales only if authenticated
+        }
+      } catch (err) {
+        console.error('Error checking auth:', err);
+        setIsAuthenticated(false);
+        toast.error('Authentication error');
+        navigate('/login', { replace: true });
+      }
+    };
+    checkAuth();
+  }, [navigate]);
 
   const fetchCompletedSales = async (pageNum, sort = sortField, order = sortOrder) => {
     try {
@@ -53,10 +81,6 @@ const CompletedSales = () => {
     }
   };
 
-  useEffect(() => {
-    fetchCompletedSales(1);
-  }, []);
-
   const handleSort = (field) => {
     const isSameField = sortField === field;
     const newSortOrder = isSameField && sortOrder === 'asc' ? 'desc' : 'asc';
@@ -94,6 +118,20 @@ const CompletedSales = () => {
       ))}
     </div>
   );
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated (redirect will handle navigation)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (loading && sales.length === 0) {
     return (
@@ -206,12 +244,12 @@ const CompletedSales = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                               sale.status === 'Part-Payment'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-green-100 text-green-800'
-                              }`}
-                            >
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}
+                          >
                             {sale.status}
                           </span>
                         </td>

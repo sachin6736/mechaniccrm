@@ -8,26 +8,35 @@ const API = import.meta.env.VITE_API_URL;
 const Navbar = () => {
   const navigate = useNavigate();
   const [showSidebar, setShowSidebar] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
   const [userRole, setUserRole] = useState(null);
 
-  // Fetch user role on mount
+  // Fetch authentication status and user role on mount
   useEffect(() => {
-    const fetchUserRole = async () => {
+    const checkAuth = async () => {
       try {
         const response = await fetch(`${API}/Auth/check-auth`, {
           method: 'GET',
           credentials: 'include',
         });
         const data = await response.json();
-        if (response.ok && data.isAuthenticated) {
+        if (!data.isAuthenticated) {
+          setIsAuthenticated(false);
+          toast.error('Please log in to access this page');
+          navigate('/login', { replace: true });
+        } else {
+          setIsAuthenticated(true);
           setUserRole(data.user.role);
         }
       } catch (err) {
-        console.error('Error fetching user role:', err);
+        console.error('Error checking auth:', err);
+        setIsAuthenticated(false);
+        toast.error('Authentication error');
+        navigate('/login', { replace: true });
       }
     };
-    fetchUserRole();
-  }, []);
+    checkAuth();
+  }, [navigate]);
 
   const handleLogout = async () => {
     try {
@@ -36,8 +45,10 @@ const Navbar = () => {
         credentials: 'include',
       });
       if (res.ok) {
+        setIsAuthenticated(null);
+        setUserRole(null);
         toast.success('Logged out successfully');
-        navigate('/');
+        navigate('/login', { replace: true });
       } else {
         toast.error('Failed to log out');
       }
@@ -109,6 +120,20 @@ const Navbar = () => {
       },
     },
   ];
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated (redirect will handle navigation)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <>

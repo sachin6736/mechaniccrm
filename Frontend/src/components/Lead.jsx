@@ -48,53 +48,77 @@ const Lead = () => {
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmText, setConfirmText] = useState('Confirm');
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
 
+  // Check authentication status on mount
   useEffect(() => {
-    const fetchSingleLead = async () => {
+    const checkAuth = async () => {
       try {
-        setLoading(true);
-        console.log('Fetching lead with ID:', id);
-        const response = await fetch(`${API}/Lead/getleadbyid/${id}`, {
+        const response = await fetch(`${API}/Auth/check-auth`, {
           method: 'GET',
           credentials: 'include',
         });
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Response error:', errorText);
-          throw new Error(`Failed to fetch lead: ${response.status}`);
-        }
         const data = await response.json();
-        if (!data.success) {
-          throw new Error(data.message || 'Failed to fetch lead data');
+        if (!data.isAuthenticated) {
+          setIsAuthenticated(false);
+          toast.error('Please log in to access this page');
+          navigate('/login', { replace: true });
+        } else {
+          setIsAuthenticated(true);
+          if (id) {
+            fetchSingleLead();
+          } else {
+            toast.error('Invalid lead ID');
+            navigate('/leads', { replace: true });
+          }
         }
-        console.log('Fetched single lead:', data.data); // Log the fetched lead data
-        setSingleLead(data.data);
-        setNotes(data.data.notes || []);
-        setSelectedDates(data.data.importantDates || []);
-        setEditForm({
-          name: data.data.name || '',
-          email: data.data.email || '',
-          phoneNumber: data.data.phoneNumber || '',
-          businessName: data.data.businessName || '',
-          businessAddress: data.data.businessAddress || '',
-          disposition: data.data.disposition || '',
-        });
-        setLoading(false);
       } catch (err) {
-        console.error('Fetch error:', err);
-        setError('Failed to load lead data.');
-        toast.error('Failed to load lead data.');
-        setLoading(false);
+        console.error('Error checking auth:', err);
+        setIsAuthenticated(false);
+        toast.error('Authentication error');
+        navigate('/login', { replace: true });
       }
     };
-    
-    if (id) {
-      fetchSingleLead();
-    } else {
-      toast.error('Invalid lead ID');
-      navigate('/leads');
-    }
+    checkAuth();
   }, [id, navigate]);
+
+  const fetchSingleLead = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching lead with ID:', id);
+      const response = await fetch(`${API}/Lead/getleadbyid/${id}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`Failed to fetch lead: ${response.status}`);
+      }
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to fetch lead data');
+      }
+      console.log('Fetched single lead:', data.data);
+      setSingleLead(data.data);
+      setNotes(data.data.notes || []);
+      setSelectedDates(data.data.importantDates || []);
+      setEditForm({
+        name: data.data.name || '',
+        email: data.data.email || '',
+        phoneNumber: data.data.phoneNumber || '',
+        businessName: data.data.businessName || '',
+        businessAddress: data.data.businessAddress || '',
+        disposition: data.data.disposition || '',
+      });
+      setLoading(false);
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setError('Failed to load lead data.');
+      toast.error('Failed to load lead data.');
+      setLoading(false);
+    }
+  };
 
   const handleSaveNotes = async () => {
     if (!newNote.trim()) {
@@ -306,6 +330,20 @@ const Lead = () => {
     });
     setShowConfirmModal(true);
   };
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated (redirect will handle navigation)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (loading) {
     return (

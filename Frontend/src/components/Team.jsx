@@ -19,35 +19,66 @@ const Team = () => {
   const [error, setError] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
-  // Fetch all users
+  // Check authentication status and user role on mount
   useEffect(() => {
-    const fetchUsers = async () => {
+    const checkAuth = async () => {
       try {
-        setLoading(true);
-        const response = await fetch(`${API}/Auth/users`, {
+        const response = await fetch(`${API}/Auth/check-auth`, {
           method: 'GET',
           credentials: 'include',
         });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to fetch users: ${response.status}`);
-        }
         const data = await response.json();
-        if (!data.success) {
-          throw new Error(data.message || 'Failed to fetch users');
+        if (!data.isAuthenticated) {
+          setIsAuthenticated(false);
+          toast.error('Please log in to access this page');
+          navigate('/login', { replace: true });
+        } else {
+          setIsAuthenticated(true);
+          setUserRole(data.user.role);
+          if (data.user.role !== 'admin') {
+            toast.error('Access denied. Admins only.');
+            navigate('/leads', { replace: true });
+          } else {
+            fetchUsers();
+          }
         }
-        setUsers(data.data);
-        setLoading(false);
       } catch (err) {
-        console.error('Fetch error:', err);
-        setError('Failed to load users.');
-        toast.error('Failed to load users.');
-        setLoading(false);
+        console.error('Error checking auth:', err);
+        setIsAuthenticated(false);
+        toast.error('Authentication error');
+        navigate('/login', { replace: true });
       }
     };
-    fetchUsers();
-  }, []);
+    checkAuth();
+  }, [navigate]);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API}/Auth/users`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch users: ${response.status}`);
+      }
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to fetch users');
+      }
+      setUsers(data.data);
+      setLoading(false);
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setError('Failed to load users.');
+      toast.error('Failed to load users.');
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -96,6 +127,20 @@ const Team = () => {
     });
     setShowConfirmModal(true);
   };
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null || userRole === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated or not an admin (redirect will handle navigation)
+  if (!isAuthenticated || userRole !== 'admin') {
+    return null;
+  }
 
   if (loading) {
     return (

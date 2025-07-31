@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -16,6 +16,33 @@ const AddLead = () => {
     disposition: 'Follow up',
   });
   const [loading, setLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${API}/Auth/check-auth`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        const data = await response.json();
+        if (!data.isAuthenticated) {
+          setIsAuthenticated(false);
+          toast.error('Please log in to access this page');
+          navigate('/login', { replace: true });
+        } else {
+          setIsAuthenticated(true);
+        }
+      } catch (err) {
+        console.error('Error checking auth:', err);
+        setIsAuthenticated(false);
+        toast.error('Authentication error');
+        navigate('/login', { replace: true });
+      }
+    };
+    checkAuth();
+  }, [navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -49,6 +76,16 @@ const AddLead = () => {
       setLoading(false);
     }
   };
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  // Don't render anything if not authenticated (redirect will handle navigation)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 md:pl-24 md:pt-20">

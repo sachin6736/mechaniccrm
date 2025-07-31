@@ -24,13 +24,41 @@ const DueSales = () => {
   const [sortField, setSortField] = useState('contractEndDate');
   const [sortOrder, setSortOrder] = useState('asc');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${API}/Auth/check-auth`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        const data = await response.json();
+        if (!data.isAuthenticated) {
+          setIsAuthenticated(false);
+          toast.error('Please log in to access this page');
+          navigate('/login', { replace: true });
+        } else {
+          setIsAuthenticated(true);
+          fetchDueSales(1); // Fetch sales only if authenticated
+        }
+      } catch (err) {
+        console.error('Error checking auth:', err);
+        setIsAuthenticated(false);
+        toast.error('Authentication error');
+        navigate('/login', { replace: true });
+      }
+    };
+    checkAuth();
+  }, [navigate]);
 
   const fetchDueSales = async (pageNum, search = searchQuery, sort = sortField, order = sortOrder) => {
     try {
       setLoading(true);
       const query = new URLSearchParams({
         page: pageNum,
-        limit: 10,
+        limit : 10,
         ...(search && { search }),
         sortField: sort,
         sortOrder: order,
@@ -67,10 +95,6 @@ const DueSales = () => {
     }, 300),
     []
   );
-
-  useEffect(() => {
-    fetchDueSales(1);
-  }, []);
 
   const handleSort = (field) => {
     const isSameField = sortField === field;
@@ -116,6 +140,20 @@ const DueSales = () => {
       ))}
     </div>
   );
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-50 flex justify-center items-center md:pl-24 md:pt-20">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated (redirect will handle navigation)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (loading && sales.length === 0) {
     return (
@@ -299,7 +337,7 @@ const DueSales = () => {
                             className={`px-3 py-1 rounded-lg text-sm font-medium ${
                               page === pageNum
                                 ? 'bg-indigo-600 text-white'
-                                : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50'
+                                : 'bg-white text-preview-indigo-600 border border-indigo-200 hover:bg-indigo-50'
                             } transition duration-200`}
                           >
                             {pageNum}
