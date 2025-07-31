@@ -30,6 +30,7 @@ const Leads = () => {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalLeads: 0, hasMore: false });
   const [isAuthenticated, setIsAuthenticated] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
   // Derived loading state for spinner and button/input disabling
   const isLoading = apiLoading.checkAuth || apiLoading.fetchLeads || apiLoading.downloadExcel;
@@ -50,6 +51,7 @@ const Leads = () => {
             navigate('/login', { replace: true });
           } else {
             setIsAuthenticated(true);
+            setUserRole(data.user.role);
             await fetchLeads(1);
           }
         } catch (err) {
@@ -57,11 +59,18 @@ const Leads = () => {
           setIsAuthenticated(false);
           toast.error('Authentication error');
           navigate('/login', { replace: true });
-        }
+        } 
       });
     };
     checkAuth();
   }, [navigate]);
+
+  // Log userRole when it changes
+  useEffect(() => {
+    if (userRole) {
+      console.log("userRole:", userRole);
+    }
+  }, [userRole]);
 
   const fetchLeads = async (pageNum, disposition = filterDisposition, search = searchQuery, sort = sortField, order = sortOrder) => {
     await withLoading('fetchLeads', async () => {
@@ -250,14 +259,15 @@ const Leads = () => {
               <PlusCircle className="h-5 w-5 mr-2" />
               New Lead
             </button>
-            <button
-              onClick={handleDownloadExcel}
-              disabled={isLoading}
-              className={`inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:-translate-y-0.5 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <Download className="h-5 w-5 mr-2" />
-              Download as Excel
-            </button>
+            {userRole === 'admin' && (
+              <button
+                onClick={handleDownloadExcel}
+                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:-translate-y-0.5"
+              >
+                <Download className="h-5 w-5 mr-2" />
+                Download as Excel
+              </button>
+            )}
           </div>
         </div>
 
@@ -312,7 +322,7 @@ const Leads = () => {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+                <table className="min-w-full divide-y-2 divide-gray-200">
                   <thead className="bg-indigo-600 text-white">
                     <tr>
                       {[
@@ -345,7 +355,7 @@ const Leads = () => {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y-2 divide-gray-200">
                     {leads.map((lead, index) => (
                       <tr
                         key={lead._id}
