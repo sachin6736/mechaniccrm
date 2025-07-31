@@ -12,10 +12,17 @@ const Navbar = () => {
   const [showSidebar, setShowSidebar] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [userName, setUserName] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Fetch authentication status and user role on mount
+  // Capitalize role for display
+  const formatRole = (role) => {
+    if (!role) return 'N/A';
+    return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+  };
+
+  // Fetch authentication status, user role, and username on mount
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -31,6 +38,7 @@ const Navbar = () => {
         } else {
           setIsAuthenticated(true);
           setUserRole(data.user.role);
+          setUserName(data.user.name || 'Unknown User');
         }
       } catch (err) {
         console.error('Error checking auth:', err);
@@ -52,6 +60,7 @@ const Navbar = () => {
       if (res.ok) {
         setIsAuthenticated(null);
         setUserRole(null);
+        setUserName(null);
         toast.success('Logged out successfully');
         navigate('/login', { replace: true });
       } else {
@@ -182,14 +191,18 @@ const Navbar = () => {
 
       {/* Desktop Header */}
       <div className="hidden md:flex w-full h-16 bg-indigo-600 text-white fixed top-0 left-0 pl-20 items-center justify-end px-4 shadow-md z-40">
-        <button
-          onClick={confirmLogout}
-          className={`w-8 h-8 bg-white text-indigo-600 rounded-full flex items-center justify-center shadow-md ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-          disabled={loading}
-          title="Log Out"
-        >
-          <LogOut className="w-5 h-5" />
-        </button>
+        <div className="flex items-center space-x-4">
+          <span className="text-white">{userName}</span>{' '}
+          <span className="text-green-500">({formatRole(userRole)})</span>
+          <button
+            onClick={confirmLogout}
+            className={`w-8 h-8 bg-white text-indigo-600 rounded-full flex items-center justify-center shadow-md ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={loading}
+            title="Log Out"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Mobile Header */}
@@ -201,14 +214,19 @@ const Navbar = () => {
         >
           <Menu className="w-8 h-8" />
         </button>
-        <button
-          onClick={confirmLogout}
-          className={`w-8 h-8 bg-white text-indigo-600 rounded-full flex items-center justify-center shadow-md ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-          disabled={loading}
-          title="Log Out"
-        >
-          <LogOut className="w-5 h-5" />
-        </button>
+        <div className="flex items-center space-x-4">
+          <div className="text-sm font-semibold text-white truncate max-w-[120px]">
+            {userName} {formatRole(userRole)}
+          </div>
+          <button
+            onClick={confirmLogout}
+            className={`w-8 h-8 bg-white text-indigo-600 rounded-full flex items-center justify-center shadow-md ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={loading}
+            title="Log Out"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Mobile Sidebar */}
